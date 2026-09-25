@@ -1,0 +1,18 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const app = (0, express_1.default)();
+app.get("/projects", (req, res) => {
+    const projects = [
+        { title: "Create backend", completed: true },
+        { title: "Connect gateway", completed: false },
+        { title: "Build dashboard", completed: false },
+    ];
+    return res.json({ projects });
+});
+app.listen(5001, () => {
+    console.log("Sever started to listen");
+});

@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  wso2am:
+    image: wso2/wso2am:4.4.0
+    container_name: wso2am
+    ports:
+      - "9443:9443"
+      - "8243:8243"
+      - "8280:8280"
+    volumes:
+      - wso2am-data:/home/wso2carbon/wso2am-4.4.0/repository/deployment/server
+    networks:
+      - devgateway
+    healthcheck:
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:9443/carbon/admin/login.jsp"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile
+    container_name: backend
+    # env_file:
+    #   - ./services/backend/.env
+    ports:
+      - "4000:4000"
+    networks:
+      - devgateway
+    depends_on:
+      - wso2am
+
+  sidecar:
+    build:
+      context: ./services/sidecar
+      dockerfile: Dockerfile
+    container_name: sidecar
+    # env_file:
+    #   - ./services/sidecar/.env
+    ports:
+      - "4100:4100"
+    networks:
+      - devgateway
+    depends_on:
+      - backend
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    # env_file:
+    #   - ./dashboard/.env
+    ports:
+      - "3000:3000"
+    networks:
+      - devgateway
+    depends_on:
+      - wso2am
+      - sidecar
+
+networks:
+  devgateway:
+    driver: bridge
+
+volumes:
+  wso2am-data:
