@@ -22,6 +22,8 @@ export interface IApplicationRepository {
   listByOwner(ownerId: string): Promise<ApplicationRecord[]>;
   /** Returns null when the application doesn't exist or belongs to someone else. */
   findForOwner(id: string, ownerId: string): Promise<ApplicationRecord | null>;
+  /** Returns false when nothing matched (missing or someone else's). */
+  deleteForOwner(id: string, ownerId: string): Promise<boolean>;
 }
 
 type StoredApplication = {
@@ -66,5 +68,11 @@ export class ApplicationRepository implements IApplicationRepository {
     if (!isValidObjectId(id)) return null;
     const doc = await applicationModel.findOne({ _id: id, ownerId }).lean().exec();
     return doc ? toRecord(doc) : null;
+  }
+
+  async deleteForOwner(id: string, ownerId: string): Promise<boolean> {
+    if (!isValidObjectId(id)) return false;
+    const result = await applicationModel.deleteOne({ _id: id, ownerId }).exec();
+    return result.deletedCount === 1;
   }
 }

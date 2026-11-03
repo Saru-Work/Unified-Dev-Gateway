@@ -74,6 +74,13 @@ export class InMemoryApplicationRepository implements IApplicationRepository {
   ): Promise<ApplicationRecord | null> {
     return this.records.find((r) => r.id === id && r.ownerId === ownerId) ?? null;
   }
+
+  async deleteForOwner(id: string, ownerId: string): Promise<boolean> {
+    const i = this.records.findIndex((r) => r.id === id && r.ownerId === ownerId);
+    if (i === -1) return false;
+    this.records.splice(i, 1);
+    return true;
+  }
 }
 
 /** Reversible "hash" so tests don't pay argon2's deliberate slowness. */
@@ -136,6 +143,10 @@ export interface TestServer {
     path: string,
     headers?: Record<string, string>,
   ): Promise<{ status: number; body: any }>;
+  delete(
+    path: string,
+    headers?: Record<string, string>,
+  ): Promise<{ status: number; body: any }>;
   /** Registers + logs in a user and returns an Authorization header for them. */
   login(email?: string): Promise<Record<string, string>>;
 }
@@ -185,6 +196,7 @@ export async function startTestServer(): Promise<TestServer> {
       ),
     post: (path, body, headers) => request("POST", path, body, headers),
     get: (path, headers) => request("GET", path, undefined, headers),
+    delete: (path, headers) => request("DELETE", path, undefined, headers),
     login: async (email = "dev@example.com") => {
       await ts.post("/auth/register", { email, password: "password123" });
       const { body } = await ts.post("/auth/login", {

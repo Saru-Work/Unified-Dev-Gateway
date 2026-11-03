@@ -173,4 +173,84 @@ describe("applications", () => {
       assert.equal(res.status, 404);
     });
   });
+
+  describe("DELETE /applications/:id", () => {
+    const notFoundInWso2 = () => {
+      throw new AxiosError("not found", "ERR_BAD_REQUEST", undefined, undefined, {
+        status: 404,
+        statusText: "Not Found",
+        data: {},
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+      });
+    };
+
+    it("deletes the app in WSO2 and removes the record", async () => {
+      const { body } = await create(alice);
+      server.wso2.calls.length = 0;
+
+      const res = await server.delete(`/applications/${body.application.id}`, {
+        ...alice,
+        ...WSO2,
+      });
+      assert.equal(res.status, 204);
+      assert.deepEqual(
+        server.wso2.calls.map((c) => `${c.method} ${c.path} ${c.authorization}`),
+        ["DELETE /applications/wso2-1 Bearer wso2-token"],
+      );
+      const after = await server.get(`/applications/${body.application.id}`, alice);
+      assert.equal(after.status, 404);
+    });
+
+    it("requires a WSO2 token", async () => {
+      const { body } = await create(alice);
+      server.wso2.calls.length = 0;
+      const res = await server.delete(`/applications/${body.application.id}`, alice);
+      assert.equal(res.status, 401);
+      assert.equal(server.wso2.calls.length, 0);
+      assert.equal(server.applications.records.length, 1);
+    });
+
+    it("returns 404 for someone else's app without touching WSO2", async () => {
+      const { body } = await create(alice);
+      server.wso2.calls.length = 0;
+      const res = await server.delete(`/applications/${body.application.id}`, {
+        ...bob,
+        ...WSO2,
+      });
+      assert.equal(res.status, 404);
+      assert.equal(server.wso2.calls.length, 0);
+      assert.equal(server.applications.records.length, 1);
+    });
+
+    it("still removes the record if WSO2 already deleted the app", async () => {
+      const { body } = await create(alice);
+      server.wso2.respond = notFoundInWso2;
+      const res = await server.delete(`/applications/${body.application.id}`, {
+        ...alice,
+        ...WSO2,
+      });
+      assert.equal(res.status, 204);
+      assert.equal(server.applications.records.length, 0);
+    });
+
+    it("keeps the record if WSO2 refuses the delete", async () => {
+      const { body } = await create(alice);
+      server.wso2.respond = () => {
+        throw new AxiosError("forbidden", "ERR_BAD_REQUEST", undefined, undefined, {
+          status: 403,
+          statusText: "Forbidden",
+          data: {},
+          headers: {},
+          config: { headers: new AxiosHeaders() },
+        });
+      };
+      const res = await server.delete(`/applications/${body.application.id}`, {
+        ...alice,
+        ...WSO2,
+      });
+      assert.equal(res.status, 403);
+      assert.equal(server.applications.records.length, 1);
+    });
+  });
 });

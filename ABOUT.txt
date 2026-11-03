@@ -35,7 +35,8 @@ You use OpenGate through its HTTP API (for example with curl or Postman):
   5. Create an app       POST /applications    creates it in WSO2, you own it
   6. List your apps      GET  /applications    only yours, newest first
   7. View one app        GET  /applications/<id>
-  8. Health check        GET  /health
+  8. Delete an app       DELETE /applications/<id>
+  9. Health check        GET  /health
 
 Built-in protections:
   - Passwords are stored as argon2 hashes, never in plain text.
@@ -50,7 +51,7 @@ WHAT IT CAN'T DO YET
   - No web UI: the dashboard isn't built, so it's API-only for now.
   - Creating an app needs a WSO2 token that you get from WSO2 yourself and
     send in the X-WSO2-Authorization header.
-  - You can't edit or delete apps, generate API keys, or subscribe apps to
+  - You can't edit apps, generate API keys, or subscribe apps to
     APIs through OpenGate yet.
   - No "stay logged in": when your token expires after 15 minutes, you log in
     again.

@@ -130,7 +130,7 @@ Every call that changes something in WSO2 carries **two** tokens:
 | `Authorization: Bearer …` | OpenGate access token from `/auth/login` | *Who you are in OpenGate* (used for ownership) |
 | `X-WSO2-Authorization: Bearer …` | WSO2 OAuth token | *That WSO2 allows the action* (forwarded unchanged to WSO2) |
 
-Only `POST /applications` needs the WSO2 token today. Reads come from
+Only `POST` and `DELETE` on `/applications` need the WSO2 token today. Reads come from
 OpenGate's own database. (Having the backend get WSO2 tokens itself, so
 users only ever handle the OpenGate token, is on the roadmap. See
 [ARCHITECTURE.md §6](ARCHITECTURE.md#6-known-gaps--next-steps).)
@@ -286,6 +286,19 @@ curl -s $API/applications/6ae985a7348dc636274f99de -H "Authorization: Bearer $TO
 Another user's app returns `404` (not `403`), the same as an ID that doesn't
 exist. That way, the API never confirms that someone else's app exists.
 
+### 4.7 Delete an application
+
+```bash
+curl -s -X DELETE $API/applications/6ae985a7348dc636274f99de \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-WSO2-Authorization: Bearer $WSO2_TOKEN"
+```
+
+- Status `204`, with no body.
+- OpenGate deletes the app in WSO2 first, then removes its own record.
+- If WSO2 says the app is already gone (`404`), the record is still removed.
+- If WSO2 refuses (e.g. `403`), nothing is removed and you get WSO2's status.
+
 ---
 
 ## 5. API reference
@@ -302,6 +315,7 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | `POST` | `/applications` | `Authorization`, `X-WSO2-Authorization` | `{name, description?}` | `201 {application}` |
 | `GET` | `/applications` | `Authorization` | none | `200 {applications}` |
 | `GET` | `/applications/:id` | `Authorization` | none | `200 {application}` |
+| `DELETE` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | none | `204` |
 
 ---
 
@@ -316,7 +330,7 @@ Every error response has the same shape:
 | Status | When |
 |--------|------|
 | `400` | Missing or invalid fields, password under 8 characters, malformed JSON |
-| `401` | Missing, invalid or expired OpenGate token. Wrong email or password. Missing `X-WSO2-Authorization` on `POST /applications`. |
+| `401` | Missing, invalid or expired OpenGate token. Wrong email or password. Missing `X-WSO2-Authorization` when creating or deleting an app. |
 | `404` | Application not found, or it belongs to someone else |
 | `409` | Email already registered |
 | `413` | Request body over 100 kB |

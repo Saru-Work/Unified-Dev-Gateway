@@ -126,6 +126,7 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 | `POST` | `/applications` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name, description? }` → `201 { application }` |
 | `GET`  | `/applications` | OpenGate JWT | `{ applications: [...] }`, the caller's apps, newest first |
 | `GET`  | `/applications/:id` | OpenGate JWT | `{ application }`. Another user's app or an unknown/malformed id → `404` |
+| `DELETE` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `204`. Deletes in WSO2 first (a WSO2 `404` counts as already gone), then removes the record. Ownership is checked before WSO2 is called. |
 
 `application` shape:
 
@@ -143,7 +144,7 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 **Two tokens.** `Authorization: Bearer <OpenGate JWT>` identifies the
 OpenGate user. `X-WSO2-Authorization: Bearer <WSO2 token>` is forwarded
 unchanged to WSO2 when the call has to act inside WSO2. Only
-`POST /applications` needs it. Reads are served from Mongo.
+`POST` and `DELETE` on `/applications` need it. Reads are served from Mongo.
 
 ### 3.3 Key flows
 
@@ -279,7 +280,7 @@ manage applications.
 - Version 4.7.0 (upgraded from 4.4.0; the old setup is in `backups/`).
 - The backend only uses the **DevPortal REST API v3**
   (`/api/am/devportal/v3`): `GET /apis`, `POST /applications`,
-  `DELETE /applications/{id}`.
+  `DELETE /applications/{id}` (for user deletes and create rollback).
 - New applications are created with `throttlingPolicy: "Unlimited"` and
   `tokenType: "JWT"`.
 - `wso2-config/apis` and `wso2-config/sequences` are set aside for API
@@ -293,7 +294,7 @@ manage applications.
 | Area | Gap | Suggested direction |
 |------|-----|---------------------|
 | WSO2 credentials | Clients have to supply their own WSO2 token (`X-WSO2-Authorization`). | Have the backend get its own token: register an OAuth client with WSO2 (DCR) and use a service account. Then users only ever deal with OpenGate tokens. |
-| Application lifecycle | No update or delete endpoints. No key generation, subscriptions or API keys. | Add `DELETE /applications/:id`, `POST /applications/:id/keys`, subscriptions. Always check ownership in Mongo before calling WSO2. |
+| Application lifecycle | No update endpoint. No key generation, subscriptions or API keys. | Add `PATCH /applications/:id`, `POST /applications/:id/keys`, subscriptions. Always check ownership in Mongo before calling WSO2. |
 | Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token. | Refresh token in an httpOnly cookie, rotated on each use. |
 | Browser access | No CORS configuration, so the dashboard (`:3000`) can't call the backend (`:4000`) from the browser. | Allow the dashboard origin with CORS, or proxy through Next.js route handlers. |
 | Rate limiting | Kept in memory per instance. | Move to a shared store (e.g. Redis) once there's more than one backend instance. |

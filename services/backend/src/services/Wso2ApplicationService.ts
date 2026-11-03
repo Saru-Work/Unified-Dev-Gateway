@@ -3,6 +3,7 @@ import type {
   ApplicationRecord,
   IApplicationRepository,
 } from "../repositories/ApplicationRepository";
+import { isAxiosError } from "axios";
 import { AppError } from "../errors/AppError";
 
 export interface CreateApplicationInput {
@@ -77,5 +78,26 @@ export class Wso2ApplicationService {
       throw new AppError(404, "Application not found");
     }
     return app;
+  }
+
+  /**
+   * Deletes the app from WSO2, then forgets it locally. If WSO2 says it's
+   * already gone (404), the local record is still removed.
+   */
+  async delete(
+    ownerId: string,
+    id: string,
+    wso2Authorization: string,
+  ): Promise<void> {
+    const app = await this.get(ownerId, id);
+    try {
+      await this.client.delete(
+        `/applications/${encodeURIComponent(app.wso2ApplicationId)}`,
+        wso2Authorization,
+      );
+    } catch (err) {
+      if (!(isAxiosError(err) && err.response?.status === 404)) throw err;
+    }
+    await this.applications.deleteForOwner(id, ownerId);
   }
 }
