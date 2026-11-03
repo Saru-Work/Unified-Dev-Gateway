@@ -7,6 +7,9 @@ export function createApplicationRouter(
   authenticate: RequestHandler,
 ) {
   const router = Router();
-  router.post("/", authenticate, controller.create);
+  router.use(authenticate);
+  router.post("/", controller.create);
+  router.get("/", controller.list);
+  router.get("/:id", controller.get);
   return router;
 }

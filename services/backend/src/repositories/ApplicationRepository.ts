@@ -1,0 +1,70 @@
+import { isValidObjectId } from "mongoose";
+import { applicationModel } from "../models/ApplicationModel";
+
+export interface ApplicationRecord {
+  id: string;
+  ownerId: string;
+  wso2ApplicationId: string;
+  name: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface NewApplication {
+  ownerId: string;
+  wso2ApplicationId: string;
+  name: string;
+  description: string;
+}
+
+export interface IApplicationRepository {
+  create(input: NewApplication): Promise<ApplicationRecord>;
+  listByOwner(ownerId: string): Promise<ApplicationRecord[]>;
+  /** Returns null when the application doesn't exist or belongs to someone else. */
+  findForOwner(id: string, ownerId: string): Promise<ApplicationRecord | null>;
+}
+
+type StoredApplication = {
+  _id: { toString(): string };
+  ownerId: { toString(): string };
+  wso2ApplicationId: string;
+  name: string;
+  description: string;
+  createdAt: Date;
+};
+
+function toRecord(doc: StoredApplication): ApplicationRecord {
+  return {
+    id: doc._id.toString(),
+    ownerId: doc.ownerId.toString(),
+    wso2ApplicationId: doc.wso2ApplicationId,
+    name: doc.name,
+    description: doc.description,
+    createdAt: doc.createdAt.toISOString(),
+  };
+}
+
+export class ApplicationRepository implements IApplicationRepository {
+  async create(input: NewApplication): Promise<ApplicationRecord> {
+    return toRecord(await applicationModel.create(input));
+  }
+
+  async listByOwner(ownerId: string): Promise<ApplicationRecord[]> {
+    const docs = await applicationModel
+      .find({ ownerId })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+    return docs.map(toRecord);
+  }
+
+  async findForOwner(
+    id: string,
+    ownerId: string,
+  ): Promise<ApplicationRecord | null> {
+    // A malformed id can't match anything; avoid Mongoose's CastError (-> 500).
+    if (!isValidObjectId(id)) return null;
+    const doc = await applicationModel.findOne({ _id: id, ownerId }).lean().exec();
+    return doc ? toRecord(doc) : null;
+  }
+}

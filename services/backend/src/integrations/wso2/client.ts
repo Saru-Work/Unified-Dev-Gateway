@@ -10,6 +10,7 @@ export interface HttpResult {
 export interface Wso2Transport {
   get(path: string, authorization?: string): Promise<HttpResult>;
   post(path: string, body: unknown, authorization: string): Promise<HttpResult>;
+  delete(path: string, authorization: string): Promise<HttpResult>;
 }
 
 export class Wso2Client implements Wso2Transport {
@@ -56,5 +57,12 @@ export class Wso2Client implements Wso2Transport {
       status: response.status,
       data: response.data,
     };
+  }
+
+  async delete(path: string, authorization: string): Promise<HttpResult> {
+    const response = await this.http.delete<unknown>(path, {
+      headers: { Authorization: authorization },
+    });
+    return { status: response.status, data: response.data };
   }
 }

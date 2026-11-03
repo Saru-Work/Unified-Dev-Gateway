@@ -6,8 +6,8 @@ export class ApplicationController {
   constructor(private readonly service: Wso2ApplicationService) {}
 
   create = async (req: Request, res: Response) => {
-    const authorization = req.get("x-wso2-authorization");
-    if (!authorization) {
+    const wso2Authorization = req.get("x-wso2-authorization");
+    if (!wso2Authorization) {
       throw new AppError(
         401,
         "Provide a WSO2 bearer token in the X-WSO2-Authorization header",
@@ -18,13 +18,27 @@ export class ApplicationController {
       throw new AppError(400, "Application name is required");
     }
 
-    const result = await this.service.create(
+    const application = await this.service.create(
+      res.locals.userId as string,
       {
         name: name.trim(),
-        description: typeof description === "string" ? description : "",
+        description: typeof description === "string" ? description.trim() : "",
       },
-      authorization,
+      wso2Authorization,
     );
-    res.status(result.status).json(result.data);
+    res.status(201).json({ application });
+  };
+
+  list = async (_req: Request, res: Response) => {
+    const applications = await this.service.list(res.locals.userId as string);
+    res.json({ applications });
+  };
+
+  get = async (req: Request<{ id: string }>, res: Response) => {
+    const application = await this.service.get(
+      res.locals.userId as string,
+      req.params.id,
+    );
+    res.json({ application });
   };
 }

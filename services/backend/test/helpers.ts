@@ -3,6 +3,11 @@ import type { Server } from "node:http";
 import { createApp } from "../src/app";
 import type { HttpResult, Wso2Transport } from "../src/integrations/wso2/client";
 import type {
+  ApplicationRecord,
+  IApplicationRepository,
+  NewApplication,
+} from "../src/repositories/ApplicationRepository";
+import type {
   IUserRepository,
   PublicUser,
   UserCredentials,
@@ -36,6 +41,41 @@ export class InMemoryUserRepository implements IUserRepository {
   }
 }
 
+export class InMemoryApplicationRepository implements IApplicationRepository {
+  readonly records: ApplicationRecord[] = [];
+  /** Set to make the next create() throw, to exercise rollback. */
+  failNextCreate: Error | null = null;
+  private nextId = 1;
+
+  async create(input: NewApplication): Promise<ApplicationRecord> {
+    if (this.failNextCreate) {
+      const err = this.failNextCreate;
+      this.failNextCreate = null;
+      throw err;
+    }
+    const record: ApplicationRecord = {
+      ...input,
+      id: `app-${this.nextId++}`,
+      createdAt: new Date(Date.now() + this.nextId).toISOString(),
+    };
+    this.records.push(record);
+    return record;
+  }
+
+  async listByOwner(ownerId: string): Promise<ApplicationRecord[]> {
+    return this.records
+      .filter((r) => r.ownerId === ownerId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async findForOwner(
+    id: string,
+    ownerId: string,
+  ): Promise<ApplicationRecord | null> {
+    return this.records.find((r) => r.id === id && r.ownerId === ownerId) ?? null;
+  }
+}
+
 /** Reversible "hash" so tests don't pay argon2's deliberate slowness. */
 export const fakeHasher: PasswordHasher = {
   hash: async (password) => `hashed:${password}`,
@@ -43,7 +83,7 @@ export const fakeHasher: PasswordHasher = {
 };
 
 export interface RecordedCall {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "DELETE";
   path: string;
   body?: unknown;
   authorization?: string | undefined;
@@ -72,11 +112,18 @@ export class FakeWso2 implements Wso2Transport {
     this.calls.push(call);
     return this.respond(call);
   }
+
+  async delete(path: string, authorization: string): Promise<HttpResult> {
+    const call: RecordedCall = { method: "DELETE", path, authorization };
+    this.calls.push(call);
+    return this.respond(call);
+  }
 }
 
 export interface TestServer {
   url: string;
   wso2: FakeWso2;
+  applications: InMemoryApplicationRepository;
   tokens: UserTokenService;
   close(): Promise<void>;
   /** POST JSON and return status + parsed body. */
@@ -96,8 +143,10 @@ export interface TestServer {
 export async function startTestServer(): Promise<TestServer> {
   const wso2 = new FakeWso2();
   const tokens = new UserTokenService(TEST_SECRET);
+  const applications = new InMemoryApplicationRepository();
   const app = createApp({
     users: new InMemoryUserRepository(),
+    applications,
     passwords: fakeHasher,
     tokens,
     wso2,
@@ -128,6 +177,7 @@ export async function startTestServer(): Promise<TestServer> {
   const ts: TestServer = {
     url,
     wso2,
+    applications,
     tokens,
     close: () =>
       new Promise((resolve, reject) =>

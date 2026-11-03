@@ -1,3 +1,4 @@
+import { isValidObjectId } from "mongoose";
 import { userModel } from "../models/UserModel";
 
 export interface PublicUser {
@@ -39,6 +40,7 @@ export class UserRepository implements IUserRepository {
   }
 
   async findById(id: string): Promise<PublicUser | null> {
+    if (!isValidObjectId(id)) return null;
     const user = await userModel.findById(id).exec();
     if (!user) return null;
     return { id: user._id.toString(), email: user.email };

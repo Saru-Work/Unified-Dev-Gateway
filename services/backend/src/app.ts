@@ -1,6 +1,7 @@
 import express from "express";
 import type { Wso2Transport } from "./integrations/wso2/client";
 import type { IUserRepository } from "./repositories/UserRepository";
+import type { IApplicationRepository } from "./repositories/ApplicationRepository";
 import type { PasswordHasher } from "./security/PasswordHasher";
 import type { UserTokenService } from "./security/UserTokenService";
 import { requireAuth } from "./security/requireAuth";
@@ -14,6 +15,7 @@ import { errorHandler } from "./errors/errorHandler";
 
 export interface AppDependencies {
   users: IUserRepository;
+  applications: IApplicationRepository;
   passwords: PasswordHasher;
   tokens: UserTokenService;
   wso2: Wso2Transport;
@@ -26,7 +28,7 @@ export function createApp(deps: AppDependencies) {
     new AuthService(deps.users, deps.passwords, deps.tokens),
   );
   const appController = new ApplicationController(
-    new Wso2ApplicationService(deps.wso2),
+    new Wso2ApplicationService(deps.wso2, deps.applications),
   );
 
   const app = express();
