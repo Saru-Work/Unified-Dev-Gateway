@@ -1,0 +1,63 @@
+OPENGATE (Unified Dev Gateway)
+==============================
+
+WHAT IS IT?
+-----------
+OpenGate is a developer gateway that sits in front of WSO2 API Manager.
+
+WSO2 API Manager is the engine that publishes APIs, secures them, rate-limits
+them and lets developers create "applications" to use them. OpenGate puts its
+own simpler layer on top:
+
+  - Developers get their own OpenGate account (email + password).
+  - They browse the APIs published in WSO2 through OpenGate.
+  - They create WSO2 applications through OpenGate, and OpenGate remembers
+    who owns each one, so every developer sees only their own apps.
+
+The pieces:
+
+  backend    (port 4000)  The OpenGate API. This is the part that works today.
+  WSO2 APIM  (port 9443)  The API manager OpenGate talks to.
+  MongoDB                 Stores OpenGate accounts and who owns which app.
+  dashboard  (port 3000)  The web UI. Not built yet (still the starter page).
+
+Everything runs together with:  docker compose up --build -d
+
+
+WHAT CAN I DO WITH IT TODAY?
+----------------------------
+You use OpenGate through its HTTP API (for example with curl or Postman):
+
+  1. Sign up             POST /auth/register   email + password (8+ chars)
+  2. Log in              POST /auth/login      returns a token, valid 15 minutes
+  3. See who you are     GET  /auth/me
+  4. Browse APIs         GET  /apis            the APIs published in WSO2
+  5. Create an app       POST /applications    creates it in WSO2, you own it
+  6. List your apps      GET  /applications    only yours, newest first
+  7. View one app        GET  /applications/<id>
+  8. Health check        GET  /health
+
+Built-in protections:
+  - Passwords are stored as argon2 hashes, never in plain text.
+  - Login and signup are rate-limited (20 attempts per 15 minutes).
+  - You can never see or confirm another user's applications.
+  - If WSO2 creates an app but OpenGate fails to save it, OpenGate deletes
+    the app from WSO2 again so nothing is left without an owner.
+
+
+WHAT IT CAN'T DO YET
+--------------------
+  - No web UI: the dashboard isn't built, so it's API-only for now.
+  - Creating an app needs a WSO2 token that you get from WSO2 yourself and
+    send in the X-WSO2-Authorization header.
+  - You can't edit or delete apps, generate API keys, or subscribe apps to
+    APIs through OpenGate yet.
+  - No "stay logged in": when your token expires after 15 minutes, you log in
+    again.
+  - Not yet tested against a running WSO2 server.
+
+
+WHERE TO READ MORE
+------------------
+  README.md         How to set it up and use it, step by step with examples.
+  ARCHITECTURE.md   How it's built inside, plus the list of planned work.
