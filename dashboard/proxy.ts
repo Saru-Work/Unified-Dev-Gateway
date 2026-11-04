@@ -11,6 +11,8 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Only signed-in areas are matched. "/" stays public (it must render even
+// before /login exists, and it's where signed-out visitors land).
 export const config = {
-  matcher: ["/", "/applications/:path*", "/apis/:path*"],
+  matcher: ["/applications/:path*", "/apis/:path*"],
 };
