@@ -64,11 +64,12 @@ services:
     container_name: dashboard
     ports:
       - "3000:3000"
+    environment:
+      BACKEND_URL: http://backend:4000
     networks:
       - devgateway
     depends_on:
-      wso2am:
-        condition: service_healthy
+      - backend
 
 networks:
   devgateway:
