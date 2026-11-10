@@ -16,5 +16,5 @@ export function proxy(request: NextRequest) {
 // Only signed-in areas are matched. "/" stays public: it's where signed-out
 // visitors land.
 export const config = {
-  matcher: ["/applications/:path*", "/apis/:path*"],
+  matcher: ["/applications/:path*", "/apis/:path*", "/settings/:path*"],
 };

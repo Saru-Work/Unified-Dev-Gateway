@@ -16,6 +16,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <nav className="flex gap-1">
             <NavLink href="/applications">Applications</NavLink>
             <NavLink href="/apis">APIs</NavLink>
+            <NavLink href="/settings">Settings</NavLink>
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="text-sm text-muted">{user.email}</span>
