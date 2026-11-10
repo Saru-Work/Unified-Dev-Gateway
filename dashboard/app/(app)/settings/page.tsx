@@ -19,7 +19,8 @@ export default async function SettingsPage() {
           <p className="text-sm text-muted">
             Creating and deleting applications happens inside WSO2 API Manager,
             so OpenGate needs a WSO2 DevPortal access token with the{" "}
-            <code className="font-mono">apim:subscribe</code> scope. It&apos;s
+            <code className="font-mono">apim:subscribe</code> and{" "}
+            <code className="font-mono">apim:app_manage</code> scopes. It&apos;s
             kept in a secure cookie on this browser only and is never shown again.
           </p>
         </div>

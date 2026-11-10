@@ -16,8 +16,9 @@ internals (layers, data model, security, error handling), see
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
 > **Status:** the backend API is working and tested. The dashboard on `:3000`
-> is still the Next.js starter page, so for now you use OpenGate through its
-> HTTP API (examples below use `curl`).
+> covers sign-up, sign-in, browsing APIs, and creating, viewing and deleting
+> applications. This guide uses the HTTP API (`curl`) so every step is visible;
+> the same flow works in the dashboard (see [§4.8](#48-using-the-dashboard)).
 
 ---
 
@@ -69,7 +70,7 @@ it's shorter than 32 bytes.
 | Service | URL | Notes |
 |---------|-----|-------|
 | OpenGate backend | http://localhost:4000 | The API used in this guide |
-| Dashboard | http://localhost:3000 | Placeholder UI for now |
+| Dashboard | http://localhost:3000 | Developer UI on top of the backend |
 | WSO2 Publisher | https://localhost:9443/publisher | Publish APIs (login `admin` / `admin`) |
 | WSO2 Developer Portal | https://localhost:9443/devportal | WSO2's own portal |
 | WSO2 API gateway | https://localhost:8243, http://localhost:8280 | Where published APIs are invoked |
@@ -299,6 +300,22 @@ curl -s -X DELETE $API/applications/6ae985a7348dc636274f99de \
 - If WSO2 says the app is already gone (`404`), the record is still removed.
 - If WSO2 refuses (e.g. `403`), nothing is removed and you get WSO2's status.
 
+### 4.8 Using the dashboard
+
+Open http://localhost:3000. The dashboard calls the backend from the Next.js
+server, so your browser only ever talks to `:3000` and never sees a token.
+
+1. **Create an account** (or **Sign in**). Your session lasts as long as the
+   OpenGate token, 15 minutes. After that you're asked to sign in again
+   and then sent back to the page you were on.
+2. **APIs** lists the public APIs in WSO2. Search by name, description,
+   context or provider.
+3. **Settings**: paste a WSO2 token ([§4.4](#44-get-a-wso2-token)). It's
+   kept in an httpOnly cookie for one hour and cleared when you sign out.
+   You only need it to create or delete applications.
+4. **Applications → New application** creates the app in WSO2 and opens its
+   page, which shows its OpenGate and WSO2 IDs and lets you delete it.
+
 ---
 
 ## 5. API reference
@@ -380,6 +397,18 @@ add `ports: ["27017:27017"]` under `mongo`.
 | `WSO2_ALLOW_SELF_SIGNED` | no | `false` |
 | `PORT` | no | `4000` |
 
+### Dashboard
+
+```bash
+cd dashboard
+npm ci
+export BACKEND_URL=http://localhost:4000   # the default
+npm run dev      # http://localhost:3000
+```
+
+`npm run lint` runs ESLint and `npm run build` makes a production build
+(it also type-checks).
+
 ---
 
 ## 8. Troubleshooting
@@ -395,4 +424,5 @@ add `ports: ["27017:27017"]` under `mongo`.
 | `401 Invalid or expired token` after a while | OpenGate tokens last 15 minutes. Log in again. |
 | `POST /applications` returns WSO2's `401` or `403` | The WSO2 token has expired or lacks the `apim:subscribe apim:app_manage` scopes. Get a new one ([§4.4](#44-get-a-wso2-token)). |
 | `/apis` returns an empty list | No APIs are published (or none are public) in WSO2 yet. |
-| Dashboard on `:3000` doesn't show OpenGate data | Expected: the dashboard isn't built yet. |
+| Dashboard says "Something went wrong" | The dashboard can't reach the backend. Check `docker compose ps` and that `BACKEND_URL` points at it (compose: `http://backend:4000`). |
+| Dashboard can't create or delete applications | Save a current WSO2 token on the Settings page. It's kept for one hour. |
