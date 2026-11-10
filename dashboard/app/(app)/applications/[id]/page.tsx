@@ -6,6 +6,7 @@ import { backend, BackendError } from "@/lib/backend";
 import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 import type { Application } from "@/lib/types";
+import { DeleteApplication } from "./delete-application";
 
 /** Shared by generateMetadata and the page so the backend is called once. */
 const getApplication = cache(async (id: string): Promise<Application> => {
@@ -60,6 +61,8 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
           </div>
         ))}
       </dl>
+
+      <DeleteApplication id={application.id} name={application.name} />
     </>
   );
 }

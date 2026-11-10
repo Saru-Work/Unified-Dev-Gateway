@@ -46,3 +46,25 @@ export async function createApplication(
   revalidatePath("/applications");
   redirect(`/applications/${application.id}`);
 }
+
+export async function deleteApplication(id: string): Promise<FormState> {
+  const { token } = await requireUser();
+  const wso2Token = await getWso2Token();
+  if (!wso2Token) return { error: NO_WSO2_TOKEN };
+
+  try {
+    await backend(`/applications/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      token,
+      wso2Token,
+    });
+  } catch (err) {
+    // Already gone (or never ours): the outcome the user wanted anyway.
+    if (!(err instanceof BackendError && err.status === 404)) {
+      return { error: applicationError(err) };
+    }
+  }
+
+  revalidatePath("/applications");
+  redirect("/applications");
+}
