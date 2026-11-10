@@ -30,6 +30,12 @@ export interface Wso2Api {
   provider?: string;
 }
 
+/** WSO2 DevPortal's GET /apis response, as relayed by the backend. */
+export interface Wso2ApiList {
+  count?: number;
+  list?: Wso2Api[];
+}
+
 /** State returned by form Server Actions to their `useActionState` forms. */
 export interface FormState {
   error?: string;
