@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { createApp } from "../src/app";
 import type { HttpResult, Wso2Transport } from "../src/integrations/wso2/client";
 import type {
+  ApplicationChanges,
   ApplicationRecord,
   IApplicationRepository,
   NewApplication,
@@ -75,6 +76,17 @@ export class InMemoryApplicationRepository implements IApplicationRepository {
     return this.records.find((r) => r.id === id && r.ownerId === ownerId) ?? null;
   }
 
+  async updateForOwner(
+    id: string,
+    ownerId: string,
+    changes: ApplicationChanges,
+  ): Promise<ApplicationRecord | null> {
+    const record = await this.findForOwner(id, ownerId);
+    if (!record) return null;
+    Object.assign(record, changes);
+    return { ...record };
+  }
+
   async deleteForOwner(id: string, ownerId: string): Promise<boolean> {
     const i = this.records.findIndex((r) => r.id === id && r.ownerId === ownerId);
     if (i === -1) return false;
@@ -90,7 +102,7 @@ export const fakeHasher: PasswordHasher = {
 };
 
 export interface RecordedCall {
-  method: "GET" | "POST" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "DELETE";
   path: string;
   body?: unknown;
   authorization?: string | undefined;
@@ -120,6 +132,12 @@ export class FakeWso2 implements Wso2Transport {
     return this.respond(call);
   }
 
+  async put(path: string, body: unknown, authorization: string): Promise<HttpResult> {
+    const call: RecordedCall = { method: "PUT", path, body, authorization };
+    this.calls.push(call);
+    return this.respond(call);
+  }
+
   async delete(path: string, authorization: string): Promise<HttpResult> {
     const call: RecordedCall = { method: "DELETE", path, authorization };
     this.calls.push(call);
@@ -141,6 +159,11 @@ export interface TestServer {
   ): Promise<{ status: number; body: any }>;
   get(
     path: string,
+    headers?: Record<string, string>,
+  ): Promise<{ status: number; body: any }>;
+  patch(
+    path: string,
+    body: unknown,
     headers?: Record<string, string>,
   ): Promise<{ status: number; body: any }>;
   delete(
@@ -196,6 +219,7 @@ export async function startTestServer(): Promise<TestServer> {
       ),
     post: (path, body, headers) => request("POST", path, body, headers),
     get: (path, headers) => request("GET", path, undefined, headers),
+    patch: (path, body, headers) => request("PATCH", path, body, headers),
     delete: (path, headers) => request("DELETE", path, undefined, headers),
     login: async (email = "dev@example.com") => {
       await ts.post("/auth/register", { email, password: "password123" });

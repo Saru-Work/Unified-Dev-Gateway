@@ -17,11 +17,22 @@ export interface NewApplication {
   description: string;
 }
 
+export interface ApplicationChanges {
+  name: string;
+  description: string;
+}
+
 export interface IApplicationRepository {
   create(input: NewApplication): Promise<ApplicationRecord>;
   listByOwner(ownerId: string): Promise<ApplicationRecord[]>;
   /** Returns null when the application doesn't exist or belongs to someone else. */
   findForOwner(id: string, ownerId: string): Promise<ApplicationRecord | null>;
+  /** Returns null when nothing matched (missing or someone else's). */
+  updateForOwner(
+    id: string,
+    ownerId: string,
+    changes: ApplicationChanges,
+  ): Promise<ApplicationRecord | null>;
   /** Returns false when nothing matched (missing or someone else's). */
   deleteForOwner(id: string, ownerId: string): Promise<boolean>;
 }
@@ -67,6 +78,19 @@ export class ApplicationRepository implements IApplicationRepository {
     // A malformed id can't match anything; avoid Mongoose's CastError (-> 500).
     if (!isValidObjectId(id)) return null;
     const doc = await applicationModel.findOne({ _id: id, ownerId }).lean().exec();
+    return doc ? toRecord(doc) : null;
+  }
+
+  async updateForOwner(
+    id: string,
+    ownerId: string,
+    changes: ApplicationChanges,
+  ): Promise<ApplicationRecord | null> {
+    if (!isValidObjectId(id)) return null;
+    const doc = await applicationModel
+      .findOneAndUpdate({ _id: id, ownerId }, changes, { returnDocument: "after", runValidators: true })
+      .lean()
+      .exec();
     return doc ? toRecord(doc) : null;
   }
 

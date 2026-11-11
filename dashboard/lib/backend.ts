@@ -16,7 +16,7 @@ export class BackendError extends Error {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   /** OpenGate access token (sent as Authorization). */
   token?: string;

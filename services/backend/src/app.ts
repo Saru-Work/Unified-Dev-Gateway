@@ -7,6 +7,7 @@ import type { UserTokenService } from "./security/UserTokenService";
 import { requireAuth } from "./security/requireAuth";
 import { AuthService } from "./services/AuthService";
 import { Wso2ApplicationService } from "./services/Wso2ApplicationService";
+import { SubscriptionService } from "./services/SubscriptionService";
 import { AuthController } from "./controllers/AuthController";
 import { ApplicationController } from "./controllers/ApplicationController";
 import { createAuthRouter } from "./routes/authRouter";
@@ -27,8 +28,10 @@ export function createApp(deps: AppDependencies) {
   const authController = new AuthController(
     new AuthService(deps.users, deps.passwords, deps.tokens),
   );
+  const applicationService = new Wso2ApplicationService(deps.wso2, deps.applications);
   const appController = new ApplicationController(
-    new Wso2ApplicationService(deps.wso2, deps.applications),
+    applicationService,
+    new SubscriptionService(deps.wso2, applicationService),
   );
 
   const app = express();
@@ -41,6 +44,11 @@ export function createApp(deps: AppDependencies) {
 
   app.get("/apis", async (_req, res) => {
     const result = await deps.wso2.get("/apis");
+    res.status(result.status).json(result.data);
+  });
+
+  app.get("/apis/:id", async (req, res) => {
+    const result = await deps.wso2.get(`/apis/${encodeURIComponent(req.params.id)}`);
     res.status(result.status).json(result.data);
   });
 

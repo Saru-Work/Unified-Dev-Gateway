@@ -6,13 +6,15 @@ import type { NextRequest } from "next/server";
 // in the (app) layout.
 export function proxy(request: NextRequest) {
   if (!request.cookies.has("opengate_session")) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const login = new URL("/login", request.url);
+    login.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
+    return NextResponse.redirect(login);
   }
   return NextResponse.next();
 }
 
-// Only signed-in areas are matched. "/" stays public (it must render even
-// before /login exists, and it's where signed-out visitors land).
+// Only signed-in areas are matched. "/" stays public: it's where signed-out
+// visitors land.
 export const config = {
-  matcher: ["/applications/:path*", "/apis/:path*"],
+  matcher: ["/applications/:path*", "/apis/:path*", "/settings/:path*"],
 };

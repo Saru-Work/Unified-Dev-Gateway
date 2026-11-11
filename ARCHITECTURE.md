@@ -36,7 +36,7 @@ ever sees their own.
 | `wso2am`    | `wso2/wso2am:4.7.0`    | 9443, 8243, 8280   | API Manager: publishes APIs, owns applications, keys, subscriptions, throttling, and the runtime gateway. |
 | `mongo`     | `mongo:8`              | internal only      | OpenGate's own data: user accounts and application ownership. |
 | `backend`   | `services/backend`     | 4000               | OpenGate API: authentication, ownership, and a typed facade over the WSO2 DevPortal API. |
-| `dashboard` | `dashboard`            | 3000               | Developer UI (not yet implemented). |
+| `dashboard` | `dashboard`            | 3000               | Developer UI: sign-in, API catalogue, application management. |
 
 **Startup order** (from `docker-compose.yml`): `backend` waits until both
 `wso2am` (startup health check) and `mongo` (`ping`) report healthy, and
@@ -100,7 +100,7 @@ in fakes.
 | `src/config.ts` | Reads and validates environment variables (§3.6). |
 | `src/routes/` | `authRouter` (adds rate limiting) and `applicationRouter` (all routes need auth). |
 | `src/controllers/` | `AuthController` and `ApplicationController`. Handlers are arrow functions, so they can be passed directly as route handlers. |
-| `src/services/` | `AuthService` (register/login/me) and `Wso2ApplicationService` (create/list/get plus ownership). |
+| `src/services/` | `AuthService` (register/login/me), `Wso2ApplicationService` (create/list/get/update/delete, OAuth keys, ownership) and `SubscriptionService` (an app's WSO2 subscriptions; uses `Wso2ApplicationService.get` for ownership). |
 | `src/repositories/` | `IUserRepository` / `IApplicationRepository` interfaces and their Mongo implementations. Return plain records (`PublicUser`, `ApplicationRecord`), never Mongoose documents. |
 | `src/models/` | Mongoose schemas (§3.4). |
 | `src/security/` | `PasswordHasher` (argon2), `UserTokenService` (JWT via `jose`), `requireAuth` middleware. |
@@ -120,13 +120,20 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 |--------|------|------|-------------|
 | `GET`  | `/health` | none | Liveness: `{ "status": "ok" }` |
 | `GET`  | `/apis` | none | Proxies the WSO2 DevPortal `GET /apis` (only publicly visible APIs) |
+| `GET`  | `/apis/:id` | none | Proxies `GET /apis/{id}` (details, including subscription `tiers`). The id is URL-encoded. |
 | `POST` | `/auth/register` | none, rate-limited | `{ email, password }` → `201 { user }`. Password ≥ 8 chars. Email is trimmed and lowercased. Duplicate → `409`. |
 | `POST` | `/auth/login` | none, rate-limited | `{ email, password }` → `{ accessToken, tokenType: "Bearer", expiresIn: 900, user }`. Unknown user and wrong password both give the same `401`. |
 | `GET`  | `/auth/me` | OpenGate JWT | `{ user }` |
 | `POST` | `/applications` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name, description? }` → `201 { application }` |
 | `GET`  | `/applications` | OpenGate JWT | `{ applications: [...] }`, the caller's apps, newest first |
 | `GET`  | `/applications/:id` | OpenGate JWT | `{ application }`. Another user's app or an unknown/malformed id → `404` |
+| `PATCH` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name?, description? }` → `{ application }`. WSO2's update is a full `PUT`, so stored values are merged in and the creation-time policy and token type are re-sent. WSO2 first; a refusal leaves the record unchanged. |
 | `DELETE` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `204`. Deletes in WSO2 first (a WSO2 `404` counts as already gone), then removes the record. Ownership is checked before WSO2 is called. |
+| `GET` | `/applications/:id/keys` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ keys: [...] }` from WSO2 `oauth-keys`. Secrets and access tokens are never included. |
+| `POST` | `/applications/:id/keys` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ keyType: "PRODUCTION" \| "SANDBOX" }` → `201 { key }` with `consumerKey` **and `consumerSecret`**, the only time the secret is returned. Client-credentials grant, Resident Key Manager. Existing keys → WSO2's `409`. |
+| `GET` | `/applications/:id/subscriptions` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ subscriptions: [{ subscriptionId, apiId, apiName, apiVersion, apiContext, throttlingPolicy, status }] }` |
+| `POST` | `/applications/:id/subscriptions` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ apiId, throttlingPolicy? = "Unlimited" }` → `201 { subscription }` |
+| `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | OpenGate JWT **and** `X-WSO2-Authorization` | `204`. First reads the subscription from WSO2 and returns `404` unless it belongs to this app. |
 
 `application` shape:
 
@@ -143,8 +150,10 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 
 **Two tokens.** `Authorization: Bearer <OpenGate JWT>` identifies the
 OpenGate user. `X-WSO2-Authorization: Bearer <WSO2 token>` is forwarded
-unchanged to WSO2 when the call has to act inside WSO2. Only
-`POST` and `DELETE` on `/applications` need it. Reads are served from Mongo.
+unchanged to WSO2 when the call has to act inside WSO2: creating,
+updating and deleting applications, and everything under `keys` and
+`subscriptions`. Application reads (`GET /applications[/:id]`) are served
+from Mongo and don't need it.
 
 ### 3.3 Key flows
 
@@ -265,10 +274,41 @@ build`, then copy `dist` and `node_modules`). `.dockerignore` excludes
 ## 4. Dashboard (`dashboard/`)
 
 Next.js 16.3 / React 19.2 / Tailwind 4, linted with `eslint-config-next`.
-At the moment it's the unmodified starter template, and nothing in it
-calls the backend yet. Its intended job is to be the developer portal UI on
-top of the backend API in §3.2: sign up and log in, browse `/apis`, and
-manage applications.
+The developer portal UI on top of the backend API in §3.2.
+
+**Backend-for-frontend.** The browser only talks to the Next.js server.
+Server Components and Server Actions call the backend with `lib/backend.ts`
+(`BACKEND_URL`, default `http://localhost:4000`), so the backend needs no
+CORS and tokens never reach client JavaScript.
+
+**Sessions.** Two httpOnly, `SameSite=Lax` cookies (`Secure` in production):
+
+| Cookie | Holds | Lifetime |
+|--------|-------|----------|
+| `opengate_session` | OpenGate JWT from `/auth/login` | `expiresIn` (15 min) |
+| `opengate_wso2_token` | WSO2 token pasted on `/settings` | 1 hour |
+
+`proxy.ts` redirects requests without a session cookie to
+`/login?next=<path>` (an optimistic check only). `requireUser()` in
+`lib/session.ts` verifies the token with `/auth/me`, is cached per request,
+and sends a `401` to `/login?expired=1`. Every Server Action calls it again
+before doing anything.
+
+| Route | What it does |
+|-------|--------------|
+| `/` | Public landing page |
+| `/login`, `/register` | `(auth)` group: forms backed by `app/actions/auth.ts` |
+| `/applications` | The user's applications, newest first |
+| `/applications/new` | Create (needs the WSO2 cookie) |
+| `/applications/[id]` | Details; OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new secret is held in client state only, so the generate action deliberately doesn't revalidate. |
+| `/applications/[id]/edit` | Rename or re-describe |
+| `/apis` | Public WSO2 APIs, filtered on the server with `?q=` |
+| `/apis/[id]` | API details, gateway endpoints, and a form to subscribe one of your apps on one of its tiers |
+| `/settings` | Save or clear the WSO2 token |
+
+The signed-in routes share the `(app)` layout (header, navigation, sign out)
+with `loading.tsx` and `error.tsx`. `app/error.tsx` catches failures in that
+layout itself, such as the backend being unreachable.
 
 > `dashboard/AGENTS.md` notes that this Next.js version has breaking
 > changes. Read `node_modules/next/dist/docs/` before writing dashboard code.
@@ -279,8 +319,12 @@ manage applications.
 
 - Version 4.7.0 (upgraded from 4.4.0; the old setup is in `backups/`).
 - The backend only uses the **DevPortal REST API v3**
-  (`/api/am/devportal/v3`): `GET /apis`, `POST /applications`,
-  `DELETE /applications/{id}` (for user deletes and create rollback).
+  (`/api/am/devportal/v3`): `GET /apis`, `GET /apis/{id}`,
+  `POST`/`PUT`/`DELETE /applications[/{id}]` (delete is also the create
+  rollback), `POST /applications/{id}/generate-keys`,
+  `GET /applications/{id}/oauth-keys`, and `GET`/`POST`/`DELETE` on
+  `/subscriptions`. The keys and subscription calls follow the v3 spec but
+  haven't yet been run against a live 4.7.0 instance.
 - New applications are created with `throttlingPolicy: "Unlimited"` and
   `tokenType: "JWT"`.
 - `wso2-config/apis` and `wso2-config/sequences` are set aside for API
@@ -294,12 +338,12 @@ manage applications.
 | Area | Gap | Suggested direction |
 |------|-----|---------------------|
 | WSO2 credentials | Clients have to supply their own WSO2 token (`X-WSO2-Authorization`). | Have the backend get its own token: register an OAuth client with WSO2 (DCR) and use a service account. Then users only ever deal with OpenGate tokens. |
-| Application lifecycle | No update endpoint. No key generation, subscriptions or API keys. | Add `PATCH /applications/:id`, `POST /applications/:id/keys`, subscriptions. Always check ownership in Mongo before calling WSO2. |
+| Application lifecycle | Keys use the client-credentials grant only; no key regeneration, secret rotation, or API keys. The throttling policy is fixed at `Unlimited`. Keys and subscriptions are only tested against a fake WSO2. | Add regenerate/rotate endpoints and configurable grant types. Run an end-to-end test against the compose stack. |
 | Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token. | Refresh token in an httpOnly cookie, rotated on each use. |
-| Browser access | No CORS configuration, so the dashboard (`:3000`) can't call the backend (`:4000`) from the browser. | Allow the dashboard origin with CORS, or proxy through Next.js route handlers. |
 | Rate limiting | Kept in memory per instance. | Move to a shared store (e.g. Redis) once there's more than one backend instance. |
 | `/apis` | Unauthenticated and sends no WSO2 token, so only public APIs show up. | Decide on visibility, then forward the right credentials. |
 | Throttling policy | Hard-coded to `Unlimited`. | Make it configurable per request or per plan. |
-| Dashboard and SDK | Not implemented. | Build the UI against §3.2. Generate `packages/sdk` from an OpenAPI spec for the backend. |
+| Dashboard | Users paste a WSO2 token by hand; no session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the WSO2 credentials and sessions rows above. Add Playwright end-to-end tests. |
+| SDK | `packages/sdk` not implemented. | Generate it from an OpenAPI spec for the backend. |
 | Observability | `console` logging only. | Structured logging (e.g. pino) with request IDs. Readiness check that covers Mongo and WSO2. |
 | Docs | Root `README.md` is empty. | Add a quick-start: `.env`, `docker compose up`, a first API call. |
