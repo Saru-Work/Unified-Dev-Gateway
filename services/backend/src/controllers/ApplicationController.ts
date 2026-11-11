@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { KEY_TYPES, type KeyType } from "../services/Wso2ApplicationService";
 import type { Wso2ApplicationService } from "../services/Wso2ApplicationService";
 import { AppError } from "../errors/AppError";
 
@@ -71,6 +72,30 @@ export class ApplicationController {
       wso2Authorization,
     );
     res.json({ application });
+  };
+
+  listKeys = async (req: Request<{ id: string }>, res: Response) => {
+    const keys = await this.service.listKeys(
+      res.locals.userId as string,
+      req.params.id,
+      requireWso2Authorization(req),
+    );
+    res.json({ keys });
+  };
+
+  generateKeys = async (req: Request<{ id: string }>, res: Response) => {
+    const wso2Authorization = requireWso2Authorization(req);
+    const { keyType } = (req.body ?? {}) as Record<string, unknown>;
+    if (!KEY_TYPES.includes(keyType as KeyType)) {
+      throw new AppError(400, `keyType must be one of ${KEY_TYPES.join(", ")}`);
+    }
+    const key = await this.service.generateKeys(
+      res.locals.userId as string,
+      req.params.id,
+      keyType as KeyType,
+      wso2Authorization,
+    );
+    res.status(201).json({ key });
   };
 
   delete = async (req: Request<{ id: string }>, res: Response) => {

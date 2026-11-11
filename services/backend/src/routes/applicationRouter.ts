@@ -13,5 +13,7 @@ export function createApplicationRouter(
   router.get("/:id", controller.get);
   router.patch("/:id", controller.update);
   router.delete("/:id", controller.delete);
+  router.get("/:id/keys", controller.listKeys);
+  router.post("/:id/keys", controller.generateKeys);
   return router;
 }
