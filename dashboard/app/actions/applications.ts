@@ -149,3 +149,37 @@ export async function unsubscribe(
   revalidatePath(`/applications/${applicationId}`);
   return {};
 }
+
+export async function subscribe(
+  apiId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const { token } = await requireUser();
+  const applicationId = String(formData.get("applicationId") ?? "");
+  const throttlingPolicy = String(formData.get("throttlingPolicy") ?? "");
+  const fields = { applicationId, throttlingPolicy };
+
+  if (!applicationId) return { error: "Choose an application.", fields };
+  if (!throttlingPolicy) return { error: "Choose a tier.", fields };
+
+  const wso2Token = await getWso2Token();
+  if (!wso2Token) return { error: NO_WSO2_TOKEN, fields };
+
+  try {
+    await backend(`/applications/${encodeURIComponent(applicationId)}/subscriptions`, {
+      method: "POST",
+      body: { apiId, throttlingPolicy },
+      token,
+      wso2Token,
+    });
+  } catch (err) {
+    if (err instanceof BackendError && err.status === 409) {
+      return { error: "That application is already subscribed to this API.", fields };
+    }
+    return { error: applicationError(err), fields };
+  }
+
+  revalidatePath(`/applications/${applicationId}`);
+  redirect(`/applications/${applicationId}`);
+}

@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { backend, BackendError } from "@/lib/backend";
 import { requireUser } from "@/lib/session";
-import type { Wso2ApiDetail } from "@/lib/types";
+import type { Application, Wso2ApiDetail } from "@/lib/types";
+import { Wso2TokenNotice } from "../../wso2-token-notice";
+import { SubscribeForm } from "./subscribe-form";
 
 const getApi = cache(async (id: string): Promise<Wso2ApiDetail> => {
   await requireUser();
@@ -23,7 +25,12 @@ export async function generateMetadata({ params }: PageProps<"/apis/[id]">): Pro
 }
 
 export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
-  const api = await getApi((await params).id);
+  const { token } = await requireUser();
+  const [api, { applications }] = await Promise.all([
+    getApi((await params).id),
+    backend<{ applications: Application[] }>("/applications", { token }),
+  ]);
+  const tiers = (api.tiers ?? []).map((t) => t.tierName);
   const endpoints = (api.endpointURLs ?? []).flatMap((env) =>
     [env.URLs?.https, env.URLs?.http]
       .filter((url): url is string => Boolean(url))
@@ -80,6 +87,35 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
           </>
         )}
       </dl>
+
+      <section className="card flex flex-col gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Subscribe</h2>
+          <p className="text-sm text-muted">
+            Let one of your applications call this API.
+          </p>
+        </div>
+        <Wso2TokenNotice action="subscribe" />
+        {applications.length === 0 ? (
+          <p className="text-sm">
+            You don&apos;t have any applications yet.{" "}
+            <Link href="/applications/new" className="link">
+              Create one
+            </Link>{" "}
+            first.
+          </p>
+        ) : tiers.length === 0 ? (
+          <p className="text-sm text-muted">
+            This API doesn&apos;t offer any subscription tiers.
+          </p>
+        ) : (
+          <SubscribeForm
+            apiId={api.id}
+            applications={applications.map(({ id, name }) => ({ id, name }))}
+            tiers={tiers}
+          />
+        )}
+      </section>
 
       {endpoints.length > 0 && (
         <section className="flex flex-col gap-2">
