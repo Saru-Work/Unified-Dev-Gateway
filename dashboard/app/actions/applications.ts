@@ -47,6 +47,36 @@ export async function createApplication(
   redirect(`/applications/${application.id}`);
 }
 
+export async function updateApplication(
+  id: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const { token } = await requireUser();
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const fields = { name, description };
+
+  if (!name) return { error: "The application needs a name.", fields };
+
+  const wso2Token = await getWso2Token();
+  if (!wso2Token) return { error: NO_WSO2_TOKEN, fields };
+
+  try {
+    await backend(`/applications/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: { name, description },
+      token,
+      wso2Token,
+    });
+  } catch (err) {
+    return { error: applicationError(err), fields };
+  }
+
+  revalidatePath("/applications");
+  redirect(`/applications/${id}`);
+}
+
 export async function deleteApplication(id: string): Promise<FormState> {
   const { token } = await requireUser();
   const wso2Token = await getWso2Token();

@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getWso2Token } from "@/lib/session";
-import { CreateApplicationForm } from "./create-form";
+import { createApplication } from "@/app/actions/applications";
+import { ApplicationForm } from "../application-form";
+import { Wso2TokenNotice } from "../../wso2-token-notice";
 
 export const metadata: Metadata = { title: "New application · OpenGate" };
 
-export default async function NewApplicationPage() {
-  const hasWso2Token = Boolean(await getWso2Token());
-
+export default function NewApplicationPage() {
   return (
     <div className="flex max-w-xl flex-col gap-6">
       <div>
@@ -17,17 +16,14 @@ export default async function NewApplicationPage() {
         <h1 className="mt-1 text-2xl font-semibold">New application</h1>
       </div>
 
-      {!hasWso2Token && (
-        <p className="notice-error">
-          You need a WSO2 access token to create applications.{" "}
-          <Link href="/settings" className="link">
-            Add one in Settings
-          </Link>
-          .
-        </p>
-      )}
+      <Wso2TokenNotice action="create applications" />
 
-      <CreateApplicationForm />
+      <ApplicationForm
+        action={createApplication}
+        submitLabel="Create application"
+        pendingLabel="Creating…"
+        cancelHref="/applications"
+      />
     </div>
   );
 }

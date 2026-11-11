@@ -1,28 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { cache } from "react";
-import { backend, BackendError } from "@/lib/backend";
+import { getApplication } from "@/lib/applications";
 import { formatDate } from "@/lib/format";
-import { requireUser } from "@/lib/session";
-import type { Application } from "@/lib/types";
 import { DeleteApplication } from "./delete-application";
-
-/** Shared by generateMetadata and the page so the backend is called once. */
-const getApplication = cache(async (id: string): Promise<Application> => {
-  const { token } = await requireUser();
-  try {
-    const { application } = await backend<{ application: Application }>(
-      `/applications/${encodeURIComponent(id)}`,
-      { token },
-    );
-    return application;
-  } catch (err) {
-    // The backend answers 404 for unknown ids and other users' apps alike.
-    if (err instanceof BackendError && err.status === 404) notFound();
-    throw err;
-  }
-});
 
 export async function generateMetadata({
   params,
@@ -50,7 +30,12 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
         <Link href="/applications" className="text-sm text-muted hover:text-foreground">
           ← Applications
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold">{application.name}</h1>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold">{application.name}</h1>
+          <Link href={`/applications/${application.id}/edit`} className="button-secondary">
+            Edit
+          </Link>
+        </div>
       </div>
 
       <dl className="card grid gap-x-6 gap-y-3 sm:grid-cols-[max-content_1fr]">

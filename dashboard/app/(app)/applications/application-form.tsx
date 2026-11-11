@@ -2,10 +2,28 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { createApplication } from "@/app/actions/applications";
+import type { FormState } from "@/lib/types";
 
-export function CreateApplicationForm() {
-  const [state, formAction, pending] = useActionState(createApplication, {});
+interface ApplicationFormProps {
+  action: (prev: FormState, formData: FormData) => Promise<FormState>;
+  submitLabel: string;
+  pendingLabel: string;
+  cancelHref: string;
+  /** Starting values when editing an existing application. */
+  defaults?: { name: string; description: string };
+}
+
+/** Name + description form, shared by the create and edit pages. */
+export function ApplicationForm({
+  action,
+  submitLabel,
+  pendingLabel,
+  cancelHref,
+  defaults,
+}: ApplicationFormProps) {
+  const [state, formAction, pending] = useActionState(action, {});
+  // After an error, show what the user typed rather than the original values.
+  const values = state.fields ?? defaults;
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -22,7 +40,7 @@ export function CreateApplicationForm() {
           name="name"
           required
           autoFocus
-          defaultValue={state.fields?.name}
+          defaultValue={values?.name}
         />
         <span className="text-xs text-muted">Must be unique among your WSO2 applications.</span>
       </label>
@@ -35,15 +53,15 @@ export function CreateApplicationForm() {
           className="field"
           name="description"
           rows={3}
-          defaultValue={state.fields?.description}
+          defaultValue={values?.description}
         />
       </label>
 
       <div className="flex items-center gap-4">
         <button type="submit" className="button-primary" disabled={pending}>
-          {pending ? "Creating…" : "Create application"}
+          {pending ? pendingLabel : submitLabel}
         </button>
-        <Link href="/applications" className="link">
+        <Link href={cancelHref} className="link">
           Cancel
         </Link>
       </div>
