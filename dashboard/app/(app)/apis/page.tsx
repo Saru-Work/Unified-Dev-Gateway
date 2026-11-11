@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { backend } from "@/lib/backend";
 import { requireUser } from "@/lib/session";
 import type { Wso2Api, Wso2ApiList } from "@/lib/types";
@@ -58,25 +59,30 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {apis.map((api) => (
-            <li key={api.id} className="card flex flex-col gap-2">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="font-medium">{api.name}</span>
-                {api.version && (
-                  <span className="text-xs text-muted">v{api.version}</span>
+            <li key={api.id}>
+              <Link
+                href={`/apis/${api.id}`}
+                className="card flex h-full flex-col gap-2 hover:bg-surface"
+              >
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="font-medium">{api.name}</span>
+                  {api.version && (
+                    <span className="text-xs text-muted">v{api.version}</span>
+                  )}
+                  {api.lifeCycleStatus && (
+                    <span className="ml-auto rounded-full bg-surface px-2 py-0.5 text-xs">
+                      {api.lifeCycleStatus}
+                    </span>
+                  )}
+                </div>
+                {api.description && (
+                  <p className="text-sm text-muted">{api.description}</p>
                 )}
-                {api.lifeCycleStatus && (
-                  <span className="ml-auto rounded-full bg-surface px-2 py-0.5 text-xs">
-                    {api.lifeCycleStatus}
-                  </span>
-                )}
-              </div>
-              {api.description && (
-                <p className="text-sm text-muted">{api.description}</p>
-              )}
-              <div className="mt-auto flex flex-wrap gap-x-4 text-xs text-muted">
-                {api.context && <code className="font-mono">{api.context}</code>}
-                {api.provider && <span>by {api.provider}</span>}
-              </div>
+                <div className="mt-auto flex flex-wrap gap-x-4 text-xs text-muted">
+                  {api.context && <code className="font-mono">{api.context}</code>}
+                  {api.provider && <span>by {api.provider}</span>}
+                </div>
+              </Link>
             </li>
           ))}
         </ul>

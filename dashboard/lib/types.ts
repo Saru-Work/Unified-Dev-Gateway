@@ -30,6 +30,19 @@ export interface Wso2Api {
   provider?: string;
 }
 
+/** WSO2 DevPortal's GET /apis/{id}: the list fields plus details. */
+export interface Wso2ApiDetail extends Wso2Api {
+  tags?: string[];
+  transport?: string[];
+  /** Subscription throttling tiers this API offers. */
+  tiers?: { tierName: string; tierPlan?: string }[];
+  endpointURLs?: {
+    environmentName?: string;
+    environmentDisplayName?: string;
+    URLs?: { http?: string | null; https?: string | null };
+  }[];
+}
+
 /** WSO2 DevPortal's GET /apis response, as relayed by the backend. */
 export interface Wso2ApiList {
   count?: number;
