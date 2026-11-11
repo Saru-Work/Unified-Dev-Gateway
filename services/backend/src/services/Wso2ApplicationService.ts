@@ -1,5 +1,6 @@
 import type { Wso2Transport } from "../integrations/wso2/client";
 import type {
+  ApplicationChanges,
   ApplicationRecord,
   IApplicationRepository,
 } from "../repositories/ApplicationRepository";
@@ -10,6 +11,13 @@ export interface CreateApplicationInput {
   name: string;
   description: string;
 }
+
+// Every application OpenGate creates uses these; WSO2's update is a full
+// PUT, so they're sent again to keep them unchanged.
+const WSO2_APPLICATION_DEFAULTS = {
+  throttlingPolicy: "Unlimited",
+  tokenType: "JWT",
+} as const;
 
 function readApplicationId(data: unknown): string | null {
   if (data && typeof data === "object" && "applicationId" in data) {
@@ -36,8 +44,7 @@ export class Wso2ApplicationService {
       {
         name: input.name,
         description: input.description,
-        throttlingPolicy: "Unlimited",
-        tokenType: "JWT",
+        ...WSO2_APPLICATION_DEFAULTS,
       },
       wso2Authorization,
     );
@@ -78,6 +85,33 @@ export class Wso2ApplicationService {
       throw new AppError(404, "Application not found");
     }
     return app;
+  }
+
+  /**
+   * Renames and/or re-describes an app: WSO2 first (it enforces unique
+   * names), then the local record. Fields left undefined keep their value.
+   */
+  async update(
+    ownerId: string,
+    id: string,
+    changes: Partial<ApplicationChanges>,
+    wso2Authorization: string,
+  ): Promise<ApplicationRecord> {
+    const app = await this.get(ownerId, id);
+    const next: ApplicationChanges = {
+      name: changes.name ?? app.name,
+      description: changes.description ?? app.description,
+    };
+
+    await this.client.put(
+      `/applications/${encodeURIComponent(app.wso2ApplicationId)}`,
+      { ...next, ...WSO2_APPLICATION_DEFAULTS },
+      wso2Authorization,
+    );
+
+    const updated = await this.applications.updateForOwner(id, ownerId, next);
+    if (!updated) throw new AppError(404, "Application not found");
+    return updated;
   }
 
   /**

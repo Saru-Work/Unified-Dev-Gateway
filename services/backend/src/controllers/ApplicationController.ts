@@ -47,6 +47,32 @@ export class ApplicationController {
     res.json({ application });
   };
 
+  update = async (req: Request<{ id: string }>, res: Response) => {
+    const wso2Authorization = requireWso2Authorization(req);
+    const { name, description } = (req.body ?? {}) as Record<string, unknown>;
+
+    if (name !== undefined && (typeof name !== "string" || !name.trim())) {
+      throw new AppError(400, "Application name can't be empty");
+    }
+    if (description !== undefined && typeof description !== "string") {
+      throw new AppError(400, "Description must be a string");
+    }
+    if (name === undefined && description === undefined) {
+      throw new AppError(400, "Provide a name or description to change");
+    }
+
+    const application = await this.service.update(
+      res.locals.userId as string,
+      req.params.id,
+      {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description.trim() }),
+      },
+      wso2Authorization,
+    );
+    res.json({ application });
+  };
+
   delete = async (req: Request<{ id: string }>, res: Response) => {
     await this.service.delete(
       res.locals.userId as string,

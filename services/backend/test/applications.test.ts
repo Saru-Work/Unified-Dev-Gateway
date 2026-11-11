@@ -174,6 +174,85 @@ describe("applications", () => {
     });
   });
 
+  describe("PATCH /applications/:id", () => {
+    const patch = (id: string, body: unknown, headers: Record<string, string>) =>
+      server.patch(`/applications/${id}`, body, { ...headers, ...WSO2 });
+
+    it("requires a WSO2 token", async () => {
+      const { body } = await create(alice);
+      server.wso2.calls.length = 0;
+      const res = await server.patch(`/applications/${body.application.id}`, { name: "x" }, alice);
+      assert.equal(res.status, 401);
+      assert.equal(server.wso2.calls.length, 0);
+    });
+
+    it("rejects an empty name or an empty change", async () => {
+      const { body } = await create(alice);
+      server.wso2.calls.length = 0;
+      assert.equal((await patch(body.application.id, { name: " " }, alice)).status, 400);
+      assert.equal((await patch(body.application.id, { description: 5 }, alice)).status, 400);
+      assert.equal((await patch(body.application.id, {}, alice)).status, 400);
+      assert.equal(server.wso2.calls.length, 0);
+    });
+
+    it("updates WSO2 with the full application, then the record", async () => {
+      const { body } = await create(alice, { name: "old", description: "keep me" });
+      server.wso2.calls.length = 0;
+
+      const res = await patch(body.application.id, { name: " new " }, alice);
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.application.name, "new");
+      assert.equal(res.body.application.description, "keep me");
+      assert.deepEqual(server.wso2.calls, [
+        {
+          method: "PUT",
+          path: "/applications/wso2-1",
+          authorization: "Bearer wso2-token",
+          body: {
+            name: "new",
+            description: "keep me",
+            throttlingPolicy: "Unlimited",
+            tokenType: "JWT",
+          },
+        },
+      ]);
+      assert.equal(server.applications.records[0]?.name, "new");
+    });
+
+    it("can clear the description", async () => {
+      const { body } = await create(alice, { name: "app", description: "old" });
+      const res = await patch(body.application.id, { description: "" }, alice);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.application.description, "");
+    });
+
+    it("returns 404 for another user's app without calling WSO2", async () => {
+      const { body } = await create(alice);
+      server.wso2.calls.length = 0;
+      const res = await patch(body.application.id, { name: "mine" }, bob);
+      assert.equal(res.status, 404);
+      assert.equal(server.wso2.calls.length, 0);
+      assert.equal(server.applications.records[0]?.name, "my-app");
+    });
+
+    it("keeps the record unchanged if WSO2 refuses", async () => {
+      const { body } = await create(alice);
+      server.wso2.respond = () => {
+        throw new AxiosError("conflict", "ERR_BAD_REQUEST", undefined, undefined, {
+          status: 409,
+          statusText: "Conflict",
+          data: { description: "name taken" },
+          headers: {},
+          config: { headers: new AxiosHeaders() },
+        });
+      };
+      const res = await patch(body.application.id, { name: "taken" }, alice);
+      assert.equal(res.status, 409);
+      assert.equal(server.applications.records[0]?.name, "my-app");
+    });
+  });
+
   describe("DELETE /applications/:id", () => {
     const notFoundInWso2 = () => {
       throw new AxiosError("not found", "ERR_BAD_REQUEST", undefined, undefined, {
