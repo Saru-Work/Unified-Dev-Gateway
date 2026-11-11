@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { backend, BackendError, describeError } from "@/lib/backend";
 import { getWso2Token, requireUser } from "@/lib/session";
-import type { Application, FormState } from "@/lib/types";
+import type {
+  Application,
+  ApplicationKey,
+  FormState,
+  GenerateKeyState,
+  KeyType,
+} from "@/lib/types";
 
 const NO_WSO2_TOKEN =
   "Save a WSO2 access token in Settings before changing applications.";
@@ -97,4 +103,28 @@ export async function deleteApplication(id: string): Promise<FormState> {
 
   revalidatePath("/applications");
   redirect("/applications");
+}
+
+export async function generateKeys(
+  id: string,
+  keyType: KeyType,
+): Promise<GenerateKeyState> {
+  const { token } = await requireUser();
+  const wso2Token = await getWso2Token();
+  if (!wso2Token) return { error: NO_WSO2_TOKEN };
+
+  try {
+    const { key } = await backend<{ key: ApplicationKey }>(
+      `/applications/${encodeURIComponent(id)}/keys`,
+      { method: "POST", body: { keyType }, token, wso2Token },
+    );
+    // Deliberately no revalidatePath: re-rendering would replace this
+    // response, and the secret in it can't be fetched again.
+    return { key };
+  } catch (err) {
+    if (err instanceof BackendError && err.status === 409) {
+      return { error: "This application already has keys for that environment." };
+    }
+    return { error: applicationError(err) };
+  }
 }

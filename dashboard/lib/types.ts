@@ -56,3 +56,23 @@ export interface FormState {
   /** Echoed back so the form keeps what the user typed after an error. */
   fields?: Record<string, string>;
 }
+
+export type KeyType = "PRODUCTION" | "SANDBOX";
+
+/** An application's OAuth client, as returned by the backend. */
+export interface ApplicationKey {
+  keyType: KeyType;
+  keyMappingId?: string;
+  consumerKey: string;
+  /** Only present right after generation. */
+  consumerSecret?: string;
+  keyManager?: string;
+  keyState?: string;
+  supportedGrantTypes: string[];
+}
+
+/** State for the generate-keys form: the new key, shown once. */
+export interface GenerateKeyState {
+  error?: string;
+  key?: ApplicationKey;
+}
