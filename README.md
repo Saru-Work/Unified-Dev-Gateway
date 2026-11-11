@@ -312,9 +312,15 @@ server, so your browser only ever talks to `:3000` and never sees a token.
    context or provider.
 3. **Settings**: paste a WSO2 token ([§4.4](#44-get-a-wso2-token)). It's
    kept in an httpOnly cookie for one hour and cleared when you sign out.
-   You only need it to create or delete applications.
+   You need it for anything that changes WSO2: creating, editing or deleting
+   applications, keys, and subscriptions.
 4. **Applications → New application** creates the app in WSO2 and opens its
-   page, which shows its OpenGate and WSO2 IDs and lets you delete it.
+   page. From there you can **Edit** or delete it, and **Generate keys** for
+   production or sandbox. Copy the consumer secret straight away: it's
+   shown only once.
+5. Open an API and use **Subscribe** to let one of your applications call it
+   on a chosen tier. The application's page lists its subscriptions and
+   lets you unsubscribe.
 
 ---
 
@@ -326,13 +332,20 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 |--------|------|---------|------|---------|
 | `GET` | `/health` | none | none | `200 {status}` |
 | `GET` | `/apis` | none | none | `200` WSO2 API list |
+| `GET` | `/apis/:id` | none | none | `200` WSO2 API details |
 | `POST` | `/auth/register` | none | `{email, password}` | `201 {user}` |
 | `POST` | `/auth/login` | none | `{email, password}` | `200 {accessToken, tokenType, expiresIn, user}` |
 | `GET` | `/auth/me` | `Authorization` | none | `200 {user}` |
 | `POST` | `/applications` | `Authorization`, `X-WSO2-Authorization` | `{name, description?}` | `201 {application}` |
 | `GET` | `/applications` | `Authorization` | none | `200 {applications}` |
 | `GET` | `/applications/:id` | `Authorization` | none | `200 {application}` |
+| `PATCH` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | `{name?, description?}` | `200 {application}` |
 | `DELETE` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | none | `204` |
+| `GET` | `/applications/:id/keys` | `Authorization`, `X-WSO2-Authorization` | none | `200 {keys}` (no secrets) |
+| `POST` | `/applications/:id/keys` | `Authorization`, `X-WSO2-Authorization` | `{keyType: "PRODUCTION" \| "SANDBOX"}` | `201 {key}` incl. `consumerSecret`, shown once |
+| `GET` | `/applications/:id/subscriptions` | `Authorization`, `X-WSO2-Authorization` | none | `200 {subscriptions}` |
+| `POST` | `/applications/:id/subscriptions` | `Authorization`, `X-WSO2-Authorization` | `{apiId, throttlingPolicy?}` | `201 {subscription}` |
+| `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | `Authorization`, `X-WSO2-Authorization` | none | `204` |
 
 ---
 
