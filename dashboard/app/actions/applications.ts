@@ -128,3 +128,24 @@ export async function generateKeys(
     return { error: applicationError(err) };
   }
 }
+
+export async function unsubscribe(
+  applicationId: string,
+  subscriptionId: string,
+): Promise<FormState> {
+  const { token } = await requireUser();
+  const wso2Token = await getWso2Token();
+  if (!wso2Token) return { error: NO_WSO2_TOKEN };
+
+  try {
+    await backend(
+      `/applications/${encodeURIComponent(applicationId)}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      { method: "DELETE", token, wso2Token },
+    );
+  } catch (err) {
+    return { error: applicationError(err) };
+  }
+
+  revalidatePath(`/applications/${applicationId}`);
+  return {};
+}

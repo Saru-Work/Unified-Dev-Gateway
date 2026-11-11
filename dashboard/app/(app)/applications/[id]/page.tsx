@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/format";
 import { Suspense } from "react";
 import { DeleteApplication } from "./delete-application";
 import { KeysSection } from "./keys-section";
+import { SubscriptionsSection } from "./subscriptions-section";
 
 export async function generateMetadata({
   params,
@@ -53,6 +54,12 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
         fallback={<div className="h-40 animate-pulse rounded-lg bg-surface" aria-hidden />}
       >
         <KeysSection applicationId={application.id} />
+      </Suspense>
+
+      <Suspense
+        fallback={<div className="h-24 animate-pulse rounded-lg bg-surface" aria-hidden />}
+      >
+        <SubscriptionsSection applicationId={application.id} />
       </Suspense>
 
       <DeleteApplication id={application.id} name={application.name} />

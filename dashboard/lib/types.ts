@@ -76,3 +76,14 @@ export interface GenerateKeyState {
   error?: string;
   key?: ApplicationKey;
 }
+
+/** An application's subscription to an API, as returned by the backend. */
+export interface Subscription {
+  subscriptionId: string;
+  apiId: string;
+  apiName?: string;
+  apiVersion?: string;
+  apiContext?: string;
+  throttlingPolicy?: string;
+  status?: string;
+}
