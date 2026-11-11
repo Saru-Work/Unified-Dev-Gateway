@@ -44,6 +44,11 @@ export function createApp(deps: AppDependencies) {
     res.status(result.status).json(result.data);
   });
 
+  app.get("/apis/:id", async (req, res) => {
+    const result = await deps.wso2.get(`/apis/${encodeURIComponent(req.params.id)}`);
+    res.status(result.status).json(result.data);
+  });
+
   app.use("/auth", createAuthRouter(authController, authenticate));
   app.use("/applications", createApplicationRouter(appController, authenticate));
 
