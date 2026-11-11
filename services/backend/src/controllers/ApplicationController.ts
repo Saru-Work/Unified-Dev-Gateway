@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { KEY_TYPES, type KeyType } from "../services/Wso2ApplicationService";
 import type { Wso2ApplicationService } from "../services/Wso2ApplicationService";
+import type { SubscriptionService } from "../services/SubscriptionService";
 import { AppError } from "../errors/AppError";
 
 function requireWso2Authorization(req: Request): string {
@@ -15,7 +16,10 @@ function requireWso2Authorization(req: Request): string {
 }
 
 export class ApplicationController {
-  constructor(private readonly service: Wso2ApplicationService) {}
+  constructor(
+    private readonly service: Wso2ApplicationService,
+    private readonly subscriptions: SubscriptionService,
+  ) {}
 
   create = async (req: Request, res: Response) => {
     const wso2Authorization = requireWso2Authorization(req);
@@ -96,6 +100,49 @@ export class ApplicationController {
       wso2Authorization,
     );
     res.status(201).json({ key });
+  };
+
+  listSubscriptions = async (req: Request<{ id: string }>, res: Response) => {
+    const subscriptions = await this.subscriptions.list(
+      res.locals.userId as string,
+      req.params.id,
+      requireWso2Authorization(req),
+    );
+    res.json({ subscriptions });
+  };
+
+  subscribe = async (req: Request<{ id: string }>, res: Response) => {
+    const wso2Authorization = requireWso2Authorization(req);
+    const { apiId, throttlingPolicy = "Unlimited" } = (req.body ?? {}) as Record<
+      string,
+      unknown
+    >;
+    if (typeof apiId !== "string" || !apiId.trim()) {
+      throw new AppError(400, "apiId is required");
+    }
+    if (typeof throttlingPolicy !== "string" || !throttlingPolicy.trim()) {
+      throw new AppError(400, "throttlingPolicy must be a non-empty string");
+    }
+    const subscription = await this.subscriptions.subscribe(
+      res.locals.userId as string,
+      req.params.id,
+      { apiId: apiId.trim(), throttlingPolicy: throttlingPolicy.trim() },
+      wso2Authorization,
+    );
+    res.status(201).json({ subscription });
+  };
+
+  unsubscribe = async (
+    req: Request<{ id: string; subscriptionId: string }>,
+    res: Response,
+  ) => {
+    await this.subscriptions.unsubscribe(
+      res.locals.userId as string,
+      req.params.id,
+      req.params.subscriptionId,
+      requireWso2Authorization(req),
+    );
+    res.status(204).end();
   };
 
   delete = async (req: Request<{ id: string }>, res: Response) => {
