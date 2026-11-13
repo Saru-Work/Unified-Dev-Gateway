@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { clearWso2Token } from "@/app/actions/wso2";
 import { getWso2Token, requireUser } from "@/lib/session";
+import { PasswordForm } from "./password-form";
 import { Wso2TokenForm } from "./wso2-token-form";
 
 export const metadata: Metadata = { title: "Settings · OpenGate" };
 
 export default async function SettingsPage() {
-  await requireUser();
+  const { user } = await requireUser();
   const hasToken = Boolean(await getWso2Token());
 
   return (
@@ -40,6 +41,16 @@ export default async function SettingsPage() {
             </button>
           </form>
         )}
+      </section>
+
+      <section className="card flex max-w-2xl flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold">Password</h2>
+          <p className="text-sm text-muted">
+            Change the password for <strong>{user.email}</strong>.
+          </p>
+        </div>
+        <PasswordForm />
       </section>
     </>
   );

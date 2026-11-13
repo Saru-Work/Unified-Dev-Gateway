@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { backend, BackendError, describeError } from "@/lib/backend";
-import { cookieDefaults, SESSION_COOKIE, WSO2_COOKIE } from "@/lib/session";
+import { cookieDefaults, requireUser, SESSION_COOKIE, WSO2_COOKIE } from "@/lib/session";
 import type { FormState, LoginResponse } from "@/lib/types";
 
 function readCredentials(formData: FormData) {
@@ -72,6 +72,38 @@ export async function register(_prev: FormState, formData: FormData): Promise<Fo
   }
 
   redirect("/applications");
+}
+
+export async function changePassword(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const { token } = await requireUser();
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (!currentPassword) return { error: "Enter your current password." };
+  if (newPassword.length < 8) return { error: "New password must be at least 8 characters." };
+  if (newPassword !== confirm) return { error: "New passwords don't match." };
+
+  try {
+    await backend("/auth/password", {
+      method: "POST",
+      body: { currentPassword, newPassword },
+      token,
+    });
+  } catch (err) {
+    if (err instanceof BackendError && err.status === 403) {
+      return { error: "Your current password is incorrect." };
+    }
+    if (err instanceof BackendError && err.status === 429) {
+      return { error: "Too many attempts. Wait a few minutes and try again." };
+    }
+    return { error: describeError(err) };
+  }
+
+  return { success: "Password changed. Use it the next time you sign in." };
 }
 
 export async function logout() {
