@@ -183,3 +183,23 @@ export async function subscribe(
   revalidatePath(`/applications/${applicationId}`);
   redirect(`/applications/${applicationId}`);
 }
+
+export async function regenerateSecret(
+  id: string,
+  keyMappingId: string,
+): Promise<{ error?: string; consumerSecret?: string }> {
+  const { token } = await requireUser();
+  const wso2Token = await getWso2Token();
+  if (!wso2Token) return { error: NO_WSO2_TOKEN };
+
+  try {
+    const { key } = await backend<{ key: { consumerSecret: string } }>(
+      `/applications/${encodeURIComponent(id)}/keys/${encodeURIComponent(keyMappingId)}/regenerate-secret`,
+      { method: "POST", token, wso2Token },
+    );
+    // As with generateKeys: no revalidation, so the one-time secret stays visible.
+    return { consumerSecret: key.consumerSecret };
+  } catch (err) {
+    return { error: applicationError(err) };
+  }
+}
