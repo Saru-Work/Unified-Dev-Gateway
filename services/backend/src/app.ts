@@ -15,6 +15,7 @@ import { createAuthRouter } from "./routes/authRouter";
 import { createApplicationRouter } from "./routes/applicationRouter";
 import { createPolicyRouter } from "./routes/policyRouter";
 import { createErrorHandler } from "./errors/errorHandler";
+import { readinessHandler, type ReadinessCheck } from "./observability/readiness";
 import { jsonLogger, requestLogging, type Logger } from "./observability/requestLogging";
 
 export interface AppDependencies {
@@ -25,6 +26,8 @@ export interface AppDependencies {
   wso2: Wso2Transport;
   /** Where request and error logs go; JSON lines on stdout/stderr by default. */
   log?: Logger;
+  /** Dependency checks behind GET /ready, e.g. { mongo, wso2 }. */
+  readinessChecks?: Record<string, ReadinessCheck>;
 }
 
 /** Builds the Express app from its dependencies, so tests can inject fakes. */
@@ -48,6 +51,8 @@ export function createApp(deps: AppDependencies) {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.get("/ready", readinessHandler(deps.readinessChecks ?? {}, log));
 
   app.get("/apis", async (_req, res) => {
     const result = await deps.wso2.get("/apis");
