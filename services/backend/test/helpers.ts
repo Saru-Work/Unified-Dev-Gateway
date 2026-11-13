@@ -36,6 +36,17 @@ export class InMemoryUserRepository implements IUserRepository {
     return [...this.users.values()].find((u) => u.email === email) ?? null;
   }
 
+  async findCredentialsById(id: string): Promise<UserCredentials | null> {
+    return this.users.get(id) ?? null;
+  }
+
+  async updatePasswordHash(id: string, passwordHash: string): Promise<boolean> {
+    const user = this.users.get(id);
+    if (!user) return false;
+    user.passwordHash = passwordHash;
+    return true;
+  }
+
   async findById(id: string): Promise<PublicUser | null> {
     const user = this.users.get(id);
     return user ? { id: user.id, email: user.email } : null;

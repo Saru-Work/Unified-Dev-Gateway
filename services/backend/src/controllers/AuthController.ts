@@ -24,6 +24,19 @@ export class AuthController {
     res.json(await this.service.login(email, password));
   };
 
+  changePassword = async (req: Request, res: Response) => {
+    const { currentPassword, newPassword } = (req.body ?? {}) as Record<string, unknown>;
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+      throw new AppError(400, "currentPassword and newPassword are required");
+    }
+    await this.service.changePassword(
+      res.locals.userId as string,
+      currentPassword,
+      newPassword,
+    );
+    res.status(204).end();
+  };
+
   me = async (_req: Request, res: Response) => {
     const user = await this.service.me(res.locals.userId as string);
     res.json({ user });
