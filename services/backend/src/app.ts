@@ -14,7 +14,8 @@ import { ApplicationController } from "./controllers/ApplicationController";
 import { createAuthRouter } from "./routes/authRouter";
 import { createApplicationRouter } from "./routes/applicationRouter";
 import { createPolicyRouter } from "./routes/policyRouter";
-import { errorHandler } from "./errors/errorHandler";
+import { createErrorHandler } from "./errors/errorHandler";
+import { jsonLogger, requestLogging, type Logger } from "./observability/requestLogging";
 
 export interface AppDependencies {
   users: IUserRepository;
@@ -22,6 +23,8 @@ export interface AppDependencies {
   passwords: PasswordHasher;
   tokens: UserTokenService;
   wso2: Wso2Transport;
+  /** Where request and error logs go; JSON lines on stdout/stderr by default. */
+  log?: Logger;
 }
 
 /** Builds the Express app from its dependencies, so tests can inject fakes. */
@@ -36,8 +39,10 @@ export function createApp(deps: AppDependencies) {
     new SubscriptionService(deps.wso2, applicationService),
   );
 
+  const log = deps.log ?? jsonLogger;
   const app = express();
   app.disable("x-powered-by");
+  app.use(requestLogging(log));
   app.use(express.json({ limit: "100kb" }));
 
   app.get("/health", (_req, res) => {
@@ -61,6 +66,6 @@ export function createApp(deps: AppDependencies) {
     createPolicyRouter(new PolicyService(deps.wso2), authenticate),
   );
 
-  app.use(errorHandler);
+  app.use(createErrorHandler(log));
   return app;
 }

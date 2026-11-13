@@ -15,6 +15,7 @@ import type {
 } from "../src/repositories/UserRepository";
 import type { PasswordHasher } from "../src/security/PasswordHasher";
 import { UserTokenService } from "../src/security/UserTokenService";
+import type { LogEntry } from "../src/observability/requestLogging";
 
 export const TEST_SECRET = "test-secret-that-is-at-least-32-bytes-long";
 
@@ -161,6 +162,8 @@ export interface TestServer {
   wso2: FakeWso2;
   applications: InMemoryApplicationRepository;
   tokens: UserTokenService;
+  /** Everything the app logged, instead of writing it to the console. */
+  logs: LogEntry[];
   close(): Promise<void>;
   /** POST JSON and return status + parsed body. */
   post(
@@ -189,7 +192,9 @@ export async function startTestServer(): Promise<TestServer> {
   const wso2 = new FakeWso2();
   const tokens = new UserTokenService(TEST_SECRET);
   const applications = new InMemoryApplicationRepository();
+  const logs: LogEntry[] = [];
   const app = createApp({
+    log: (entry) => logs.push(entry),
     users: new InMemoryUserRepository(),
     applications,
     passwords: fakeHasher,
@@ -224,6 +229,7 @@ export async function startTestServer(): Promise<TestServer> {
     wso2,
     applications,
     tokens,
+    logs,
     close: () =>
       new Promise((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve())),
