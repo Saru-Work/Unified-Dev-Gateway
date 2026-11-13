@@ -8,10 +8,12 @@ import { requireAuth } from "./security/requireAuth";
 import { AuthService } from "./services/AuthService";
 import { Wso2ApplicationService } from "./services/Wso2ApplicationService";
 import { SubscriptionService } from "./services/SubscriptionService";
+import { PolicyService } from "./services/PolicyService";
 import { AuthController } from "./controllers/AuthController";
 import { ApplicationController } from "./controllers/ApplicationController";
 import { createAuthRouter } from "./routes/authRouter";
 import { createApplicationRouter } from "./routes/applicationRouter";
+import { createPolicyRouter } from "./routes/policyRouter";
 import { errorHandler } from "./errors/errorHandler";
 
 export interface AppDependencies {
@@ -54,6 +56,10 @@ export function createApp(deps: AppDependencies) {
 
   app.use("/auth", createAuthRouter(authController, authenticate));
   app.use("/applications", createApplicationRouter(appController, authenticate));
+  app.use(
+    "/throttling-policies",
+    createPolicyRouter(new PolicyService(deps.wso2), authenticate),
+  );
 
   app.use(errorHandler);
   return app;

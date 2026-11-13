@@ -3,18 +3,7 @@ import { KEY_TYPES, type KeyType } from "../services/Wso2ApplicationService";
 import type { Wso2ApplicationService } from "../services/Wso2ApplicationService";
 import type { SubscriptionService } from "../services/SubscriptionService";
 import { AppError } from "../errors/AppError";
-
-function requireWso2Authorization(req: Request): string {
-  const value = req.get("x-wso2-authorization");
-  if (!value) {
-    throw new AppError(
-      401,
-      "Provide a WSO2 bearer token in the X-WSO2-Authorization header",
-    );
-  }
-  return value;
-}
-
+import { requireWso2Authorization } from "../security/wso2Authorization";
 export class ApplicationController {
   constructor(
     private readonly service: Wso2ApplicationService,
