@@ -14,6 +14,7 @@ import { ApplicationController } from "./controllers/ApplicationController";
 import { createAuthRouter } from "./routes/authRouter";
 import { createApplicationRouter } from "./routes/applicationRouter";
 import { createPolicyRouter } from "./routes/policyRouter";
+import { openApiDocument } from "./openapi";
 import { createErrorHandler } from "./errors/errorHandler";
 import { readinessHandler, type ReadinessCheck } from "./observability/readiness";
 import { jsonLogger, requestLogging, type Logger } from "./observability/requestLogging";
@@ -50,6 +51,10 @@ export function createApp(deps: AppDependencies) {
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.get("/openapi.json", (_req, res) => {
+    res.json(openApiDocument);
   });
 
   app.get("/ready", readinessHandler(deps.readinessChecks ?? {}, log));
