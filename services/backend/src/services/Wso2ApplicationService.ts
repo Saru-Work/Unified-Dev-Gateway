@@ -1,8 +1,9 @@
 import type { Wso2Transport } from "../integrations/wso2/client";
-import type {
-  ApplicationChanges,
-  ApplicationRecord,
-  IApplicationRepository,
+import {
+  DEFAULT_THROTTLING_POLICY,
+  type ApplicationChanges,
+  type ApplicationRecord,
+  type IApplicationRepository,
 } from "../repositories/ApplicationRepository";
 import { isAxiosError } from "axios";
 import { AppError } from "../errors/AppError";
@@ -10,14 +11,13 @@ import { AppError } from "../errors/AppError";
 export interface CreateApplicationInput {
   name: string;
   description: string;
+  /** WSO2 application-level policy; defaults to Unlimited. */
+  throttlingPolicy?: string;
 }
 
-// Every application OpenGate creates uses these; WSO2's update is a full
-// PUT, so they're sent again to keep them unchanged.
-const WSO2_APPLICATION_DEFAULTS = {
-  throttlingPolicy: "Unlimited",
-  tokenType: "JWT",
-} as const;
+// Every application OpenGate creates uses JWT tokens; WSO2's update is a
+// full PUT, so this is sent again to keep it unchanged.
+const WSO2_APPLICATION_DEFAULTS = { tokenType: "JWT" } as const;
 
 export type KeyType = "PRODUCTION" | "SANDBOX";
 export const KEY_TYPES: readonly KeyType[] = ["PRODUCTION", "SANDBOX"];
@@ -82,11 +82,13 @@ export class Wso2ApplicationService {
     input: CreateApplicationInput,
     wso2Authorization: string,
   ): Promise<ApplicationRecord> {
+    const throttlingPolicy = input.throttlingPolicy ?? DEFAULT_THROTTLING_POLICY;
     const result = await this.client.post(
       "/applications",
       {
         name: input.name,
         description: input.description,
+        throttlingPolicy,
         ...WSO2_APPLICATION_DEFAULTS,
       },
       wso2Authorization,
@@ -103,6 +105,7 @@ export class Wso2ApplicationService {
         wso2ApplicationId,
         name: input.name,
         description: input.description,
+        throttlingPolicy,
       });
     } catch (err) {
       // Don't leave an application in WSO2 that nobody in OpenGate owns.
@@ -131,7 +134,7 @@ export class Wso2ApplicationService {
   }
 
   /**
-   * Renames and/or re-describes an app: WSO2 first (it enforces unique
+   * Renames, re-describes and/or changes the policy of an app: WSO2 first (it enforces unique
    * names), then the local record. Fields left undefined keep their value.
    */
   async update(
@@ -144,6 +147,7 @@ export class Wso2ApplicationService {
     const next: ApplicationChanges = {
       name: changes.name ?? app.name,
       description: changes.description ?? app.description,
+      throttlingPolicy: changes.throttlingPolicy ?? app.throttlingPolicy,
     };
 
     await this.client.put(

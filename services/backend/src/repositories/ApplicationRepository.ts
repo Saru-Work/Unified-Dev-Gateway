@@ -1,12 +1,16 @@
 import { isValidObjectId } from "mongoose";
 import { applicationModel } from "../models/ApplicationModel";
 
+/** WSO2's policy for apps created before it could be chosen. */
+export const DEFAULT_THROTTLING_POLICY = "Unlimited";
+
 export interface ApplicationRecord {
   id: string;
   ownerId: string;
   wso2ApplicationId: string;
   name: string;
   description: string;
+  throttlingPolicy: string;
   createdAt: string;
 }
 
@@ -15,11 +19,13 @@ export interface NewApplication {
   wso2ApplicationId: string;
   name: string;
   description: string;
+  throttlingPolicy: string;
 }
 
 export interface ApplicationChanges {
   name: string;
   description: string;
+  throttlingPolicy: string;
 }
 
 export interface IApplicationRepository {
@@ -43,6 +49,8 @@ type StoredApplication = {
   wso2ApplicationId: string;
   name: string;
   description: string;
+  /** Missing on records created before the policy was configurable. */
+  throttlingPolicy?: string | null;
   createdAt: Date;
 };
 
@@ -53,6 +61,7 @@ function toRecord(doc: StoredApplication): ApplicationRecord {
     wso2ApplicationId: doc.wso2ApplicationId,
     name: doc.name,
     description: doc.description,
+    throttlingPolicy: doc.throttlingPolicy || DEFAULT_THROTTLING_POLICY,
     createdAt: doc.createdAt.toISOString(),
   };
 }
