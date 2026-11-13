@@ -40,7 +40,7 @@ ever sees their own.
 
 **Startup order** (from `docker-compose.yml`): `backend` waits until both
 `wso2am` (startup health check) and `mongo` (`ping`) report healthy, and
-`dashboard` waits for `wso2am`. WSO2 needs up to about 2 minutes to start
+`dashboard` waits until `backend` is healthy, meaning its `/ready` passes. WSO2 needs up to about 2 minutes to start
 (`start_period: 120s`).
 
 **Persistent volumes:** `mongo-data`, `wso2am-470-deployment` (deployed
@@ -96,14 +96,16 @@ in fakes.
 | Path | Responsibility |
 |------|----------------|
 | `src/index.ts` | Entry point: load config, connect to Mongo, build the real dependencies, `listen`. Exits with code 1 if startup fails. |
-| `src/app.ts` | `createApp(deps)`: builds the Express app from `AppDependencies` (`users`, `applications`, `passwords`, `tokens`, `wso2`). Has no I/O of its own. |
+| `src/app.ts` | `createApp(deps)`: builds the Express app from `AppDependencies` (`users`, `applications`, `passwords`, `tokens`, `wso2`, and optionally `log` and `readinessChecks`). Has no I/O of its own. |
 | `src/config.ts` | Reads and validates environment variables (§3.6). |
-| `src/routes/` | `authRouter` (adds rate limiting) and `applicationRouter` (all routes need auth). |
+| `src/routes/` | `authRouter` (adds rate limiting), `applicationRouter` and `policyRouter` (all routes need auth). |
+| `src/openapi.ts` | The OpenAPI 3.1 document served at `/openapi.json`. A test checks it documents exactly the registered routes. |
+| `src/observability/` | `requestLogging` (request ids, one JSON log line per request, the `Logger` type) and `readiness` (`/ready`). |
 | `src/controllers/` | `AuthController` and `ApplicationController`. Handlers are arrow functions, so they can be passed directly as route handlers. |
-| `src/services/` | `AuthService` (register/login/me), `Wso2ApplicationService` (create/list/get/update/delete, OAuth keys, ownership) and `SubscriptionService` (an app's WSO2 subscriptions; uses `Wso2ApplicationService.get` for ownership). |
+| `src/services/` | `AuthService` (register/login/me), `Wso2ApplicationService` (create/list/get/update/delete, OAuth keys, ownership) and `SubscriptionService` (an app's WSO2 subscriptions; uses `Wso2ApplicationService.get` for ownership) and `PolicyService` (WSO2 throttling policies). |
 | `src/repositories/` | `IUserRepository` / `IApplicationRepository` interfaces and their Mongo implementations. Return plain records (`PublicUser`, `ApplicationRecord`), never Mongoose documents. |
 | `src/models/` | Mongoose schemas (§3.4). |
-| `src/security/` | `PasswordHasher` (argon2), `UserTokenService` (JWT via `jose`), `requireAuth` middleware. |
+| `src/security/` | `PasswordHasher` (argon2), `UserTokenService` (JWT via `jose`), `requireAuth` middleware, `requireWso2Authorization`. |
 | `src/integrations/wso2/client.ts` | `Wso2Transport` interface plus the axios-based `Wso2Client` (10s timeout, no redirects, optional self-signed TLS). |
 | `src/errors/` | `AppError(statusCode, message)` and the central `errorHandler`. |
 
@@ -119,18 +121,23 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET`  | `/health` | none | Liveness: `{ "status": "ok" }` |
+| `GET`  | `/ready` | none | Readiness: pings Mongo and calls WSO2 `GET /apis` (any HTTP answer counts), in parallel with a 3s timeout each. `200 { status: "ready", checks }` or `503` with the failed check marked `"failed"`; reasons are logged only. Compose health-checks the backend with it. |
+| `GET`  | `/openapi.json` | none | OpenAPI 3.1 description of this table |
 | `GET`  | `/apis` | none | Proxies the WSO2 DevPortal `GET /apis` (only publicly visible APIs) |
 | `GET`  | `/apis/:id` | none | Proxies `GET /apis/{id}` (details, including subscription `tiers`). The id is URL-encoded. |
 | `POST` | `/auth/register` | none, rate-limited | `{ email, password }` → `201 { user }`. Password ≥ 8 chars. Email is trimmed and lowercased. Duplicate → `409`. |
 | `POST` | `/auth/login` | none, rate-limited | `{ email, password }` → `{ accessToken, tokenType: "Bearer", expiresIn: 900, user }`. Unknown user and wrong password both give the same `401`. |
 | `GET`  | `/auth/me` | OpenGate JWT | `{ user }` |
-| `POST` | `/applications` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name, description? }` → `201 { application }` |
+| `POST` | `/auth/password` | OpenGate JWT, rate-limited | `{ currentPassword, newPassword }` → `204`. Wrong current password → `403` (checked first); new one needs 8+ chars and must differ. Issued tokens stay valid until they expire. |
+| `GET` | `/throttling-policies/:level` | OpenGate JWT **and** `X-WSO2-Authorization` | `level` is `application` or `subscription` (else `404`) → `{ policies: [{ name, displayName?, description?, requestCount?, unitTime?, timeUnit? }] }` |
+| `POST` | `/applications` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name, description?, throttlingPolicy? }` → `201 { application }`. The policy defaults to `Unlimited`. |
 | `GET`  | `/applications` | OpenGate JWT | `{ applications: [...] }`, the caller's apps, newest first |
 | `GET`  | `/applications/:id` | OpenGate JWT | `{ application }`. Another user's app or an unknown/malformed id → `404` |
-| `PATCH` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name?, description? }` → `{ application }`. WSO2's update is a full `PUT`, so stored values are merged in and the creation-time policy and token type are re-sent. WSO2 first; a refusal leaves the record unchanged. |
+| `PATCH` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name?, description?, throttlingPolicy? }` → `{ application }`. WSO2's update is a full `PUT`, so stored values (including the policy) are merged in and the token type is re-sent. WSO2 first; a refusal leaves the record unchanged. |
 | `DELETE` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `204`. Deletes in WSO2 first (a WSO2 `404` counts as already gone), then removes the record. Ownership is checked before WSO2 is called. |
 | `GET` | `/applications/:id/keys` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ keys: [...] }` from WSO2 `oauth-keys`. Secrets and access tokens are never included. |
 | `POST` | `/applications/:id/keys` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ keyType: "PRODUCTION" \| "SANDBOX" }` → `201 { key }` with `consumerKey` **and `consumerSecret`**, the only time the secret is returned. Client-credentials grant, Resident Key Manager. Existing keys → WSO2's `409`. |
+| `POST` | `/applications/:id/keys/:keyMappingId/regenerate-secret` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ key: { consumerKey, consumerSecret } }`. The old secret stops working; the new one is returned only here. |
 | `GET` | `/applications/:id/subscriptions` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ subscriptions: [{ subscriptionId, apiId, apiName, apiVersion, apiContext, throttlingPolicy, status }] }` |
 | `POST` | `/applications/:id/subscriptions` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ apiId, throttlingPolicy? = "Unlimited" }` → `201 { subscription }` |
 | `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | OpenGate JWT **and** `X-WSO2-Authorization` | `204`. First reads the subscription from WSO2 and returns `404` unless it belongs to this app. |
@@ -144,6 +151,7 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
   "wso2ApplicationId": "f3c1…",
   "name": "my-app",
   "description": "",
+  "throttlingPolicy": "Unlimited",
   "createdAt": "2026-11-03T06:56:39.898Z"
 }
 ```
@@ -203,6 +211,7 @@ email         string  unique,          ownerId            ObjectId → users._id
               lowercase, trimmed       wso2ApplicationId  string  unique
 passwordHash  string  (argon2)         name               string  trimmed
 createdAt / updatedAt                  description        string  default ""
+                                       throttlingPolicy   string  default "Unlimited"
                                        createdAt / updatedAt
 ```
 
@@ -216,11 +225,12 @@ otherwise come back as a 500.
 |---------|----------------|
 | Password storage | argon2 (library defaults, argon2id) |
 | Session tokens | HS256 JWT via `jose`: `iss=opengate`, `aud=opengate-backend`, `sub=<userId>`, 15-minute expiry. Verification pins the algorithm and requires `sub`, `iat` and `exp`. `JWT_SECRET` must be at least 32 bytes or startup fails. |
-| Brute force | `express-rate-limit` on `/auth/register` and `/auth/login`: 20 requests per 15 minutes per IP (in memory, per instance) |
+| Brute force | `express-rate-limit` on `/auth/register`, `/auth/login` and `/auth/password`: 20 requests per 15 minutes per IP for each route (in memory, per instance) |
 | User enumeration | Login gives the same 401 for an unknown email and a wrong password. Another user's application gives 404, not 403. |
 | Input handling | JSON body limit 100 kB. Credentials must be strings. Malformed JSON → 400. |
 | Tenant isolation | Every application query is scoped by `ownerId` from the verified JWT. |
-| Error leakage | Unexpected errors → generic 500, and full details are logged on the server only. `x-powered-by` is disabled. |
+| Error leakage | Unexpected errors → generic 500 with only a `requestId`; full details are logged on the server only. `/ready` names failed checks but not why. `x-powered-by` is disabled. |
+| Logging | Request logs leave out query strings, headers and bodies, so tokens and passwords never reach them. A caller's `X-Request-Id` is only reused if it matches `[\w.:-]{1,128}`. |
 | TLS to WSO2 | Certificates are verified unless `WSO2_ALLOW_SELF_SIGNED=true`. Compose sets it because WSO2 ships with a self-signed certificate. |
 
 ### 3.6 Configuration
@@ -245,7 +255,14 @@ this order:
 3. axios error **without** a response (network failure or timeout) → `502 "WSO2 is unreachable"`
 4. A client error that marks itself as exposed (e.g. body-parser's
    malformed JSON or too-large body) → its 4xx status
-5. Anything else → `500 "Internal server error"` (logged)
+5. Anything else → `500 { message: "Internal server error", requestId }` (logged with the stack)
+
+**Logging.** `requestLogging` gives each request an id, echoed in
+`X-Request-Id`, and when the response finishes logs one JSON line:
+`{ time, level, msg: "request", requestId, method, path, status, durationMs }`.
+The level is `info`, `warn` (4xx) or `error` (5xx). The error handler and
+`/ready` log through the same `Logger`, tagged with the request id. Startup
+messages and the create-rollback failure still use `console`.
 
 ### 3.8 Build, test and tooling
 
@@ -262,6 +279,7 @@ call it with `fetch`. The fakes come from `test/helpers.ts`:
 `InMemoryUserRepository` (mimics Mongo's duplicate-key error),
 `InMemoryApplicationRepository` (can be told to fail the next create),
 `fakeHasher`, and `FakeWso2` (records every call; responses are scriptable).
+The test server collects log entries in `server.logs` rather than printing them.
 The suite covers auth, validation, token checks, WSO2 pass-through and
 outages, rollback, ownership isolation and ordering.
 
@@ -298,13 +316,13 @@ before doing anything.
 |-------|--------------|
 | `/` | Public landing page |
 | `/login`, `/register` | `(auth)` group: forms backed by `app/actions/auth.ts` |
-| `/applications` | The user's applications, newest first |
-| `/applications/new` | Create (needs the WSO2 cookie) |
-| `/applications/[id]` | Details; OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new secret is held in client state only, so the generate action deliberately doesn't revalidate. |
-| `/applications/[id]/edit` | Rename or re-describe |
+| `/applications` | The user's applications, newest first, filtered on the server with `?q=` (name, description, policy) |
+| `/applications/new` | Create (needs the WSO2 cookie). The throttling policy select is filled from `/throttling-policies/application` and hidden if that can't be loaded. |
+| `/applications/[id]` | Details; OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new or regenerated secret is held in client state only, so those actions deliberately don't revalidate. Regenerating asks for an inline confirmation first. |
+| `/applications/[id]/edit` | Rename, re-describe, or change the throttling policy |
 | `/apis` | Public WSO2 APIs, filtered on the server with `?q=` |
 | `/apis/[id]` | API details, gateway endpoints, and a form to subscribe one of your apps on one of its tiers |
-| `/settings` | Save or clear the WSO2 token |
+| `/settings` | Save or clear the WSO2 token; change password |
 
 The signed-in routes share the `(app)` layout (header, navigation, sign out)
 with `loading.tsx` and `error.tsx`. `app/error.tsx` catches failures in that
@@ -322,11 +340,13 @@ layout itself, such as the backend being unreachable.
   (`/api/am/devportal/v3`): `GET /apis`, `GET /apis/{id}`,
   `POST`/`PUT`/`DELETE /applications[/{id}]` (delete is also the create
   rollback), `POST /applications/{id}/generate-keys`,
-  `GET /applications/{id}/oauth-keys`, and `GET`/`POST`/`DELETE` on
-  `/subscriptions`. The keys and subscription calls follow the v3 spec but
-  haven't yet been run against a live 4.7.0 instance.
-- New applications are created with `throttlingPolicy: "Unlimited"` and
-  `tokenType: "JWT"`.
+  `GET /applications/{id}/oauth-keys`,
+  `POST /applications/{id}/oauth-keys/{keyMappingId}/regenerate-secret`,
+  `GET /throttling-policies/{application|subscription}`, and `GET`/`POST`/`DELETE` on
+  `/subscriptions`. The keys, secret, policy and subscription calls follow the v3 spec
+  but haven't yet been run against a live 4.7.0 instance.
+- New applications are created with `tokenType: "JWT"` and the chosen
+  `throttlingPolicy` (default `"Unlimited"`).
 - `wso2-config/apis` and `wso2-config/sequences` are set aside for API
   definitions and mediation sequences, but they're empty and not mounted
   into the container yet.
@@ -338,12 +358,10 @@ layout itself, such as the backend being unreachable.
 | Area | Gap | Suggested direction |
 |------|-----|---------------------|
 | WSO2 credentials | Clients have to supply their own WSO2 token (`X-WSO2-Authorization`). | Have the backend get its own token: register an OAuth client with WSO2 (DCR) and use a service account. Then users only ever deal with OpenGate tokens. |
-| Application lifecycle | Keys use the client-credentials grant only; no key regeneration, secret rotation, or API keys. The throttling policy is fixed at `Unlimited`. Keys and subscriptions are only tested against a fake WSO2. | Add regenerate/rotate endpoints and configurable grant types. Run an end-to-end test against the compose stack. |
-| Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token. | Refresh token in an httpOnly cookie, rotated on each use. |
+| Application lifecycle | Keys use the client-credentials grant only; secrets can be regenerated, but there's no overlap period when rotating, and no API keys. Keys, secrets, policies and subscriptions are only tested against a fake WSO2. | Configurable grant types. Run an end-to-end test against the compose stack. |
+| Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token, so changing the password doesn't sign out other sessions. | Refresh token in an httpOnly cookie, rotated on each use. |
 | Rate limiting | Kept in memory per instance. | Move to a shared store (e.g. Redis) once there's more than one backend instance. |
 | `/apis` | Unauthenticated and sends no WSO2 token, so only public APIs show up. | Decide on visibility, then forward the right credentials. |
-| Throttling policy | Hard-coded to `Unlimited`. | Make it configurable per request or per plan. |
 | Dashboard | Users paste a WSO2 token by hand; no session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the WSO2 credentials and sessions rows above. Add Playwright end-to-end tests. |
-| SDK | `packages/sdk` not implemented. | Generate it from an OpenAPI spec for the backend. |
-| Observability | `console` logging only. | Structured logging (e.g. pino) with request IDs. Readiness check that covers Mongo and WSO2. |
-| Docs | Root `README.md` is empty. | Add a quick-start: `.env`, `docker compose up`, a first API call. |
+| SDK | `packages/sdk` not implemented. | Generate it from `/openapi.json` (e.g. `openapi-typescript`), then use it in the dashboard instead of the hand-written types in `lib/types.ts`. |
+| Observability | JSON request logs with ids and a `/ready` check exist, but there are no metrics, and the request id isn't forwarded to WSO2 or from the dashboard. | Forward `X-Request-Id` end to end; add request metrics (e.g. Prometheus). |

@@ -81,7 +81,15 @@ Check that it's up:
 ```bash
 curl http://localhost:4000/health
 # {"status":"ok"}
+
+# Also checks that MongoDB and WSO2 are reachable (503 if not)
+curl http://localhost:4000/ready
+# {"status":"ready","checks":{"mongo":"ok","wso2":"ok"}}
 ```
+
+The full API is described in OpenAPI 3.1 at
+http://localhost:4000/openapi.json, ready for Swagger UI, Postman or a
+client generator.
 
 Stop it with `docker compose down`. Add `-v` to also delete the Mongo and
 WSO2 data volumes.
@@ -314,10 +322,14 @@ server, so your browser only ever talks to `:3000` and never sees a token.
    kept in an httpOnly cookie for one hour and cleared when you sign out.
    You need it for anything that changes WSO2: creating, editing or deleting
    applications, keys, and subscriptions.
+   Settings is also where you **change your password**.
 4. **Applications → New application** creates the app in WSO2 and opens its
-   page. From there you can **Edit** or delete it, and **Generate keys** for
-   production or sandbox. Copy the consumer secret straight away: it's
-   shown only once.
+   page. Pick a **throttling policy** from WSO2's application policies (or
+   keep Unlimited). From the app's page you can **Edit** or delete it, and
+   **Generate keys** for production or sandbox. Copy the consumer secret
+   straight away: it's shown only once. If it's lost, **Regenerate secret**
+   issues a new one and the old one stops working. The applications list
+   can be searched by name, description or policy.
 5. Open an API and use **Subscribe** to let one of your applications call it
    on a chosen tier. The application's page lists its subscriptions and
    lets you unsubscribe.
@@ -331,18 +343,23 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | Method | Path | Headers | Body | Success |
 |--------|------|---------|------|---------|
 | `GET` | `/health` | none | none | `200 {status}` |
+| `GET` | `/ready` | none | none | `200 {status, checks}`, or `503` naming the failed check |
+| `GET` | `/openapi.json` | none | none | `200` OpenAPI 3.1 document |
 | `GET` | `/apis` | none | none | `200` WSO2 API list |
 | `GET` | `/apis/:id` | none | none | `200` WSO2 API details |
 | `POST` | `/auth/register` | none | `{email, password}` | `201 {user}` |
 | `POST` | `/auth/login` | none | `{email, password}` | `200 {accessToken, tokenType, expiresIn, user}` |
 | `GET` | `/auth/me` | `Authorization` | none | `200 {user}` |
-| `POST` | `/applications` | `Authorization`, `X-WSO2-Authorization` | `{name, description?}` | `201 {application}` |
+| `POST` | `/auth/password` | `Authorization` | `{currentPassword, newPassword}` | `204` |
+| `GET` | `/throttling-policies/:level` | `Authorization`, `X-WSO2-Authorization` | none (`level` = `application` \| `subscription`) | `200 {policies}` |
+| `POST` | `/applications` | `Authorization`, `X-WSO2-Authorization` | `{name, description?, throttlingPolicy? = "Unlimited"}` | `201 {application}` |
 | `GET` | `/applications` | `Authorization` | none | `200 {applications}` |
 | `GET` | `/applications/:id` | `Authorization` | none | `200 {application}` |
-| `PATCH` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | `{name?, description?}` | `200 {application}` |
+| `PATCH` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | `{name?, description?, throttlingPolicy?}` | `200 {application}` |
 | `DELETE` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | none | `204` |
 | `GET` | `/applications/:id/keys` | `Authorization`, `X-WSO2-Authorization` | none | `200 {keys}` (no secrets) |
 | `POST` | `/applications/:id/keys` | `Authorization`, `X-WSO2-Authorization` | `{keyType: "PRODUCTION" \| "SANDBOX"}` | `201 {key}` incl. `consumerSecret`, shown once |
+| `POST` | `/applications/:id/keys/:keyMappingId/regenerate-secret` | `Authorization`, `X-WSO2-Authorization` | none | `200 {key: {consumerKey, consumerSecret}}`, old secret revoked |
 | `GET` | `/applications/:id/subscriptions` | `Authorization`, `X-WSO2-Authorization` | none | `200 {subscriptions}` |
 | `POST` | `/applications/:id/subscriptions` | `Authorization`, `X-WSO2-Authorization` | `{apiId, throttlingPolicy?}` | `201 {subscription}` |
 | `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | `Authorization`, `X-WSO2-Authorization` | none | `204` |
@@ -357,17 +374,22 @@ Every error response has the same shape:
 { "message": "Human-readable reason", "details": { "...": "only for WSO2 errors" } }
 ```
 
+Every response also carries an `X-Request-Id` header (yours, if you send a
+short plain one, otherwise a new UUID). The backend logs one JSON line per
+request under that id, so quote it when reporting a problem.
+
 | Status | When |
 |--------|------|
 | `400` | Missing or invalid fields, password under 8 characters, malformed JSON |
-| `401` | Missing, invalid or expired OpenGate token. Wrong email or password. Missing `X-WSO2-Authorization` when creating or deleting an app. |
+| `401` | Missing, invalid or expired OpenGate token. Wrong email or password. Missing `X-WSO2-Authorization` on a call that acts in WSO2. |
+| `403` | Wrong current password on `/auth/password` |
 | `404` | Application not found, or it belongs to someone else |
 | `409` | Email already registered |
 | `413` | Request body over 100 kB |
-| `429` | Too many register/login attempts (wait 15 minutes) |
+| `429` | Too many register, login or change-password attempts (wait 15 minutes) |
 | WSO2's status | WSO2 rejected the call (e.g. `401` bad WSO2 token, `409` duplicate app name). WSO2's response body is in `details`. |
 | `502` | WSO2 unreachable or timed out (10s), or WSO2 returned no application ID |
-| `500` | Unexpected server error (details are logged by the backend, not returned) |
+| `500` | Unexpected server error. Details are logged by the backend, not returned; the body's `requestId` finds the log line. |
 
 ---
 
