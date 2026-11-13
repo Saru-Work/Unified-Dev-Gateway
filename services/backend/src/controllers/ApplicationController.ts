@@ -102,6 +102,19 @@ export class ApplicationController {
     res.status(201).json({ key });
   };
 
+  regenerateSecret = async (
+    req: Request<{ id: string; keyMappingId: string }>,
+    res: Response,
+  ) => {
+    const key = await this.service.regenerateSecret(
+      res.locals.userId as string,
+      req.params.id,
+      req.params.keyMappingId,
+      requireWso2Authorization(req),
+    );
+    res.json({ key });
+  };
+
   listSubscriptions = async (req: Request<{ id: string }>, res: Response) => {
     const subscriptions = await this.subscriptions.list(
       res.locals.userId as string,

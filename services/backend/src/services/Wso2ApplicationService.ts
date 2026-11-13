@@ -202,6 +202,31 @@ export class Wso2ApplicationService {
   }
 
   /**
+   * Replaces the consumer secret of one of the app's OAuth clients. The old
+   * secret stops working at once; the new one is returned this once.
+   */
+  async regenerateSecret(
+    ownerId: string,
+    id: string,
+    keyMappingId: string,
+    wso2Authorization: string,
+  ): Promise<{ consumerKey: string; consumerSecret: string }> {
+    const app = await this.get(ownerId, id);
+    const result = await this.client.post(
+      `/applications/${encodeURIComponent(app.wso2ApplicationId)}/oauth-keys/${encodeURIComponent(keyMappingId)}/regenerate-secret`,
+      {},
+      wso2Authorization,
+    );
+    const data = (result.data ?? {}) as Record<string, unknown>;
+    const consumerKey = str(data.consumerKey);
+    const consumerSecret = str(data.consumerSecret);
+    if (!consumerKey || !consumerSecret) {
+      throw new AppError(502, "WSO2 did not return the new secret");
+    }
+    return { consumerKey, consumerSecret };
+  }
+
+  /**
    * Deletes the app from WSO2, then forgets it locally. If WSO2 says it's
    * already gone (404), the local record is still removed.
    */
