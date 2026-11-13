@@ -7,12 +7,25 @@ import type { Application } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Applications · OpenGate" };
 
-export default async function ApplicationsPage() {
+function matches(app: Application, query: string): boolean {
+  const q = query.toLowerCase();
+  return [app.name, app.description, app.throttlingPolicy].some((value) =>
+    value?.toLowerCase().includes(q),
+  );
+}
+
+export default async function ApplicationsPage({
+  searchParams,
+}: PageProps<"/applications">) {
   const { token } = await requireUser();
-  const { applications } = await backend<{ applications: Application[] }>(
+  const { q } = await searchParams;
+  const query = typeof q === "string" ? q.trim() : "";
+
+  const { applications: all } = await backend<{ applications: Application[] }>(
     "/applications",
     { token },
   );
+  const applications = query ? all.filter((app) => matches(app, query)) : all;
 
   return (
     <>
@@ -28,7 +41,30 @@ export default async function ApplicationsPage() {
         </Link>
       </div>
 
-      {applications.length === 0 ? (
+      {all.length > 0 && (
+        <form role="search" className="flex max-w-md gap-2">
+          <input
+            className="field"
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="Search by name, description or policy"
+            aria-label="Search applications"
+          />
+          <button type="submit" className="button-secondary">
+            Search
+          </button>
+        </form>
+      )}
+
+      {query && applications.length === 0 ? (
+        <div className="card flex flex-col items-start gap-2">
+          <p className="font-medium">No applications match “{query}”</p>
+          <Link href="/applications" className="link text-sm">
+            Show all applications
+          </Link>
+        </div>
+      ) : applications.length === 0 ? (
         <div className="card flex flex-col items-start gap-2">
           <p className="font-medium">No applications yet</p>
           <p className="text-sm text-muted">
@@ -49,7 +85,7 @@ export default async function ApplicationsPage() {
                   <span className="text-sm text-muted">{app.description}</span>
                 )}
                 <span className="text-xs text-muted">
-                  Created {formatDate(app.createdAt)}
+                  Created {formatDate(app.createdAt)} · {app.throttlingPolicy}
                 </span>
               </Link>
             </li>

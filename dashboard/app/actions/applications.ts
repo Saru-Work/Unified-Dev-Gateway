@@ -30,7 +30,8 @@ export async function createApplication(
   const { token } = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const fields = { name, description };
+  const throttlingPolicy = String(formData.get("throttlingPolicy") ?? "").trim();
+  const fields = { name, description, throttlingPolicy };
 
   if (!name) return { error: "Give the application a name.", fields };
 
@@ -41,7 +42,7 @@ export async function createApplication(
   try {
     ({ application } = await backend<{ application: Application }>("/applications", {
       method: "POST",
-      body: { name, description },
+      body: { name, description, ...(throttlingPolicy && { throttlingPolicy }) },
       token,
       wso2Token,
     }));
@@ -61,7 +62,8 @@ export async function updateApplication(
   const { token } = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const fields = { name, description };
+  const throttlingPolicy = String(formData.get("throttlingPolicy") ?? "").trim();
+  const fields = { name, description, throttlingPolicy };
 
   if (!name) return { error: "The application needs a name.", fields };
 
@@ -71,7 +73,7 @@ export async function updateApplication(
   try {
     await backend(`/applications/${encodeURIComponent(id)}`, {
       method: "PATCH",
-      body: { name, description },
+      body: { name, description, ...(throttlingPolicy && { throttlingPolicy }) },
       token,
       wso2Token,
     });
@@ -182,4 +184,24 @@ export async function subscribe(
 
   revalidatePath(`/applications/${applicationId}`);
   redirect(`/applications/${applicationId}`);
+}
+
+export async function regenerateSecret(
+  id: string,
+  keyMappingId: string,
+): Promise<{ error?: string; consumerSecret?: string }> {
+  const { token } = await requireUser();
+  const wso2Token = await getWso2Token();
+  if (!wso2Token) return { error: NO_WSO2_TOKEN };
+
+  try {
+    const { key } = await backend<{ key: { consumerSecret: string } }>(
+      `/applications/${encodeURIComponent(id)}/keys/${encodeURIComponent(keyMappingId)}/regenerate-secret`,
+      { method: "POST", token, wso2Token },
+    );
+    // As with generateKeys: no revalidation, so the one-time secret stays visible.
+    return { consumerSecret: key.consumerSecret };
+  } catch (err) {
+    return { error: applicationError(err) };
+  }
 }

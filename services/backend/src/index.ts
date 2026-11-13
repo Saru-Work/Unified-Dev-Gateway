@@ -1,3 +1,4 @@
+import { isAxiosError } from "axios";
 import mongoose from "mongoose";
 import { createApp } from "./app";
 import { loadConfig } from "./config";
@@ -13,12 +14,30 @@ async function main() {
   await mongoose.connect(config.mongoUri);
   console.log("Connected to MongoDB");
 
+  const wso2 = new Wso2Client(config.wso2BaseUrl, config.wso2AllowSelfSigned);
+
   const app = createApp({
     users: new UserRepository(),
     applications: new ApplicationRepository(),
     passwords: new PasswordHasher(),
     tokens: new UserTokenService(config.jwtSecret),
-    wso2: new Wso2Client(config.wso2BaseUrl, config.wso2AllowSelfSigned),
+    wso2,
+    readinessChecks: {
+      mongo: async () => {
+        const db = mongoose.connection.db;
+        if (!db) throw new Error("not connected");
+        await db.admin().ping();
+      },
+      // Any HTTP answer, even a 401, means WSO2 is up and reachable.
+      wso2: () =>
+        wso2.get("/apis?limit=1").then(
+          () => undefined,
+          (err: unknown) => {
+            if (isAxiosError(err) && err.response) return;
+            throw err;
+          },
+        ),
+    },
   });
 
   app.listen(config.port, () => {

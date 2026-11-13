@@ -19,6 +19,7 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
 
   const rows: [string, React.ReactNode][] = [
     ["Description", application.description || <span className="text-muted">None</span>],
+    ["Throttling policy", application.throttlingPolicy],
     ["Created", formatDate(application.createdAt)],
     ["OpenGate ID", <code key="id" className="font-mono text-sm">{application.id}</code>],
     [

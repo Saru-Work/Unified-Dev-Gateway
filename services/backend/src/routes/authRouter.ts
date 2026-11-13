@@ -19,5 +19,7 @@ export function createAuthRouter(
   router.post("/register", credentialLimiter, controller.register);
   router.post("/login", credentialLimiter, controller.login);
   router.get("/me", authenticate, controller.me);
+  // Rate-limited too: it's another way to test guesses of the current password.
+  router.post("/password", authenticate, credentialLimiter, controller.changePassword);
   return router;
 }

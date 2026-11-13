@@ -75,6 +75,29 @@ describe("applications", () => {
       assert.equal(server.applications.records[0]?.ownerId, me.body.user.id);
     });
 
+    it("creates the app with a chosen throttling policy", async () => {
+      const res = await create(alice, { name: "app", throttlingPolicy: " 10PerMin " });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.application.throttlingPolicy, "10PerMin");
+      assert.equal(
+        (server.wso2.calls[0]?.body as { throttlingPolicy: string }).throttlingPolicy,
+        "10PerMin",
+      );
+    });
+
+    it("defaults the policy to Unlimited and rejects an invalid one", async () => {
+      const ok = await create(alice, { name: "app" });
+      assert.equal(ok.body.application.throttlingPolicy, "Unlimited");
+
+      server.wso2.calls.length = 0;
+      for (const throttlingPolicy of ["", "  ", 5]) {
+        const res = await create(alice, { name: "x", throttlingPolicy });
+        assert.equal(res.status, 400);
+      }
+      assert.equal(server.wso2.calls.length, 0);
+    });
+
     it("passes WSO2 error statuses through and records nothing", async () => {
       server.wso2.respond = () => {
         throw new AxiosError("conflict", "ERR_BAD_REQUEST", undefined, undefined, {
@@ -218,6 +241,21 @@ describe("applications", () => {
         },
       ]);
       assert.equal(server.applications.records[0]?.name, "new");
+    });
+
+    it("changes the throttling policy and keeps it on later updates", async () => {
+      const { body } = await create(alice, { name: "app", throttlingPolicy: "10PerMin" });
+      server.wso2.calls.length = 0;
+
+      const res = await patch(body.application.id, { throttlingPolicy: "50PerMin" }, alice);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.application.throttlingPolicy, "50PerMin");
+
+      await patch(body.application.id, { name: "renamed" }, alice);
+      assert.deepEqual(
+        server.wso2.calls.map((c) => (c.body as { throttlingPolicy: string }).throttlingPolicy),
+        ["50PerMin", "50PerMin"],
+      );
     });
 
     it("can clear the description", async () => {

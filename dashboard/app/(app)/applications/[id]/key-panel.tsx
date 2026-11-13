@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { generateKeys } from "@/app/actions/applications";
+import { useActionState, useState } from "react";
+import { generateKeys, regenerateSecret } from "@/app/actions/applications";
 import { CopyButton } from "@/app/copy-button";
 import type { ApplicationKey, GenerateKeyState, KeyType } from "@/lib/types";
 
@@ -36,15 +36,25 @@ export function KeyPanel({ applicationId, keyType, existing }: KeyPanelProps) {
     generateKeys.bind(null, applicationId, keyType),
     {},
   );
-  const key = state.key ?? existing;
+  const [confirming, setConfirming] = useState(false);
+  const [regenerated, regenerateAction, regenerating] = useActionState(
+    regenerateSecret.bind(null, applicationId, existing?.keyMappingId ?? ""),
+    {},
+  );
+  const generated = state.key ?? existing;
+  const key = generated && {
+    ...generated,
+    consumerSecret: regenerated.consumerSecret ?? generated.consumerSecret,
+  };
+  const error = state.error ?? regenerated.error;
 
   return (
     <div className="card flex flex-col gap-3">
       <h3 className="font-semibold">{LABELS[keyType]}</h3>
 
-      {state.error && (
+      {error && (
         <p role="alert" className="notice-error">
-          {state.error}
+          {error}
         </p>
       )}
 
@@ -60,9 +70,40 @@ export function KeyPanel({ applicationId, keyType, existing }: KeyPanelProps) {
               </p>
             </>
           ) : (
-            <p className="text-xs text-muted">
-              The consumer secret was shown once, when these keys were generated.
-            </p>
+            <div className="flex flex-col items-start gap-2">
+              <p className="text-xs text-muted">
+                The consumer secret was shown once, when these keys were generated.
+              </p>
+              {key.keyMappingId &&
+                (confirming ? (
+                  <form
+                    action={regenerateAction}
+                    onSubmit={() => setConfirming(false)}
+                    className="flex flex-wrap items-center gap-2"
+                  >
+                    <span className="text-sm">The current secret stops working at once.</span>
+                    <button type="submit" className="button-danger">
+                      Regenerate
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => setConfirming(false)}
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={regenerating}
+                    onClick={() => setConfirming(true)}
+                  >
+                    {regenerating ? "Regenerating…" : "Regenerate secret…"}
+                  </button>
+                ))}
+            </div>
           )}
           {key.supportedGrantTypes.length > 0 && (
             <p className="text-xs text-muted">

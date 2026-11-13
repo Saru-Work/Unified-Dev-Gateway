@@ -3,16 +3,14 @@ import { KEY_TYPES, type KeyType } from "../services/Wso2ApplicationService";
 import type { Wso2ApplicationService } from "../services/Wso2ApplicationService";
 import type { SubscriptionService } from "../services/SubscriptionService";
 import { AppError } from "../errors/AppError";
-
-function requireWso2Authorization(req: Request): string {
-  const value = req.get("x-wso2-authorization");
-  if (!value) {
-    throw new AppError(
-      401,
-      "Provide a WSO2 bearer token in the X-WSO2-Authorization header",
-    );
+import { requireWso2Authorization } from "../security/wso2Authorization";
+/** Optional throttlingPolicy field: absent → undefined, otherwise a non-empty string. */
+function readThrottlingPolicy(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !value.trim()) {
+    throw new AppError(400, "throttlingPolicy must be a non-empty string");
   }
-  return value;
+  return value.trim();
 }
 
 export class ApplicationController {
@@ -23,16 +21,21 @@ export class ApplicationController {
 
   create = async (req: Request, res: Response) => {
     const wso2Authorization = requireWso2Authorization(req);
-    const { name, description } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, description, throttlingPolicy } = (req.body ?? {}) as Record<
+      string,
+      unknown
+    >;
     if (typeof name !== "string" || !name.trim()) {
       throw new AppError(400, "Application name is required");
     }
+    const policy = readThrottlingPolicy(throttlingPolicy);
 
     const application = await this.service.create(
       res.locals.userId as string,
       {
         name: name.trim(),
         description: typeof description === "string" ? description.trim() : "",
+        ...(policy && { throttlingPolicy: policy }),
       },
       wso2Authorization,
     );
@@ -54,7 +57,11 @@ export class ApplicationController {
 
   update = async (req: Request<{ id: string }>, res: Response) => {
     const wso2Authorization = requireWso2Authorization(req);
-    const { name, description } = (req.body ?? {}) as Record<string, unknown>;
+    const { name, description, throttlingPolicy } = (req.body ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const policy = readThrottlingPolicy(throttlingPolicy);
 
     if (name !== undefined && (typeof name !== "string" || !name.trim())) {
       throw new AppError(400, "Application name can't be empty");
@@ -62,8 +69,8 @@ export class ApplicationController {
     if (description !== undefined && typeof description !== "string") {
       throw new AppError(400, "Description must be a string");
     }
-    if (name === undefined && description === undefined) {
-      throw new AppError(400, "Provide a name or description to change");
+    if (name === undefined && description === undefined && policy === undefined) {
+      throw new AppError(400, "Provide a name, description or throttlingPolicy to change");
     }
 
     const application = await this.service.update(
@@ -72,6 +79,7 @@ export class ApplicationController {
       {
         ...(name !== undefined && { name: name.trim() }),
         ...(description !== undefined && { description: description.trim() }),
+        ...(policy && { throttlingPolicy: policy }),
       },
       wso2Authorization,
     );
@@ -100,6 +108,19 @@ export class ApplicationController {
       wso2Authorization,
     );
     res.status(201).json({ key });
+  };
+
+  regenerateSecret = async (
+    req: Request<{ id: string; keyMappingId: string }>,
+    res: Response,
+  ) => {
+    const key = await this.service.regenerateSecret(
+      res.locals.userId as string,
+      req.params.id,
+      req.params.keyMappingId,
+      requireWso2Authorization(req),
+    );
+    res.json({ key });
   };
 
   listSubscriptions = async (req: Request<{ id: string }>, res: Response) => {

@@ -149,3 +149,64 @@ describe("application keys", () => {
     });
   });
 });
+
+describe("POST /applications/:id/keys/:keyMappingId/regenerate-secret", () => {
+  let server: TestServer;
+  let alice: Record<string, string>;
+  let bob: Record<string, string>;
+  let appId: string;
+
+  before(async () => {
+    server = await startTestServer();
+    alice = await server.login("alice@example.com");
+    bob = await server.login("bob@example.com");
+    server.wso2.respond = () => ({ status: 201, data: { applicationId: "wso2-app" } });
+    const { body } = await server.post("/applications", { name: "app" }, { ...alice, ...WSO2 });
+    appId = body.application.id;
+  });
+  after(() => server.close());
+  beforeEach(() => {
+    server.wso2.calls.length = 0;
+  });
+
+  const regenerate = (headers: Record<string, string>, mapping = "map-1") =>
+    server.post(`/applications/${appId}/keys/${mapping}/regenerate-secret`, {}, headers);
+
+  it("requires a WSO2 token", async () => {
+    const res = await regenerate(alice);
+    assert.equal(res.status, 401);
+    assert.equal(server.wso2.calls.length, 0);
+  });
+
+  it("returns the new secret from WSO2", async () => {
+    server.wso2.respond = () => ({
+      status: 200,
+      data: { consumerKey: "ck-123", consumerSecret: "new-secret" },
+    });
+
+    const res = await regenerate({ ...alice, ...WSO2 }, "map 1");
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { key: { consumerKey: "ck-123", consumerSecret: "new-secret" } });
+    assert.deepEqual(server.wso2.calls, [
+      {
+        method: "POST",
+        path: "/applications/wso2-app/oauth-keys/map%201/regenerate-secret",
+        body: {},
+        authorization: "Bearer wso2-token",
+      },
+    ]);
+  });
+
+  it("returns 502 if WSO2's reply has no secret", async () => {
+    server.wso2.respond = () => ({ status: 200, data: { consumerKey: "ck-123" } });
+    const res = await regenerate({ ...alice, ...WSO2 });
+    assert.equal(res.status, 502);
+  });
+
+  it("returns 404 for another user's app without calling WSO2", async () => {
+    const res = await regenerate({ ...bob, ...WSO2 });
+    assert.equal(res.status, 404);
+    assert.equal(server.wso2.calls.length, 0);
+  });
+});
