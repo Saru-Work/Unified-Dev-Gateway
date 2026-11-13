@@ -9,7 +9,18 @@ export interface Application {
   wso2ApplicationId: string;
   name: string;
   description: string;
+  throttlingPolicy: string;
   createdAt: string;
+}
+
+/** A WSO2 throttling policy (tier), as returned by the backend. */
+export interface ThrottlingPolicy {
+  name: string;
+  displayName?: string;
+  description?: string;
+  requestCount?: number;
+  unitTime?: number;
+  timeUnit?: string;
 }
 
 export interface LoginResponse {

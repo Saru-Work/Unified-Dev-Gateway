@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createApplication } from "@/app/actions/applications";
+import { getApplicationPolicies } from "@/lib/policies";
 import { ApplicationForm } from "../application-form";
 import { Wso2TokenNotice } from "../../wso2-token-notice";
 
 export const metadata: Metadata = { title: "New application · OpenGate" };
 
-export default function NewApplicationPage() {
+export default async function NewApplicationPage() {
+  const policies = await getApplicationPolicies();
+
   return (
     <div className="flex max-w-xl flex-col gap-6">
       <div>
@@ -23,6 +26,7 @@ export default function NewApplicationPage() {
         submitLabel="Create application"
         pendingLabel="Creating…"
         cancelHref="/applications"
+        policies={policies}
       />
     </div>
   );
