@@ -56,6 +56,17 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
+    healthcheck:
+      # /ready checks Mongo and WSO2 too; the image has node but no curl.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   dashboard:
     build:
@@ -69,7 +80,8 @@ services:
     networks:
       - devgateway
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 networks:
   devgateway:
