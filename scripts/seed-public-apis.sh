@@ -18,6 +18,14 @@
 # whose values the gateway masks in responses, for providers that echo the
 # key back (e.g. in links); it uses the policy in scripts/wso2-policies/.
 #
+# Shared limits: "x-opengate"."upstreamLimit", e.g. { "requests": 900,
+# "per": "hour" } ("min", "hour" or "day"), caps the calls the gateway sends
+# to the provider from all developers together, so the provider's quota
+# isn't exhausted by one user. It's a WSO2 API-level policy (created as
+# OpenGate<n>Per<Unit>). WSO2 counts asynchronously, so a few calls may get
+# through past the limit: set it a little below the provider's real quota.
+# "providerKey"."fallbackLimit" replaces it while the demo key is in use.
+#
 # Safe to re-run: existing APIs (same name and version) get the current
 # definition, description, tags and provider key, and are redeployed only if
 # their endpoints or provider key changed.
@@ -33,6 +41,7 @@ WSO2_URL=${WSO2_URL:-https://localhost:9443}
 WSO2_USERNAME=${WSO2_USERNAME:-admin}
 WSO2_PASSWORD=${WSO2_PASSWORD:-admin}
 PUBLISHER="$WSO2_URL/api/am/publisher/v4"
+ADMIN="$WSO2_URL/api/am/admin/v4"
 TIERS='["Bronze","Silver","Gold","Unlimited"]'
 API_DIR="$(cd "$(dirname "$0")" && pwd)/public-apis"
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
@@ -71,7 +80,7 @@ token=$(wso2 -u "$(jq -r .clientId <<<"$client"):$(jq -r .clientSecret <<<"$clie
   --data-urlencode grant_type=password \
   --data-urlencode "username=$WSO2_USERNAME" \
   --data-urlencode "password=$WSO2_PASSWORD" \
-  --data-urlencode 'scope=apim:api_create apim:api_view apim:api_publish apim:api_manage apim:common_operation_policy_view apim:common_operation_policy_manage' |
+  --data-urlencode 'scope=apim:api_create apim:api_view apim:api_publish apim:api_manage apim:common_operation_policy_view apim:common_operation_policy_manage apim:admin_tier_view apim:admin_tier_manage' |
   jq -r .access_token)
 auth=(-H "Authorization: Bearer $token")
 
@@ -88,6 +97,25 @@ redact_policy_id() {
     fi
   fi
   echo "$REDACT_POLICY_ID"
+}
+
+# The name of an API-level policy allowing <requests> per <unit>, creating it
+# in WSO2 if needed. Arguments: requests, unit (min|hour|day).
+limit_policy() {
+  local requests=$1 unit=$2 name
+  name="OpenGate${requests}Per$(tr '[:lower:]' '[:upper:]' <<<"${unit:0:1}")${unit:1}"
+  if ! wso2 "${auth[@]}" "$ADMIN/throttling/policies/advanced" |
+      jq -e --arg n "$name" 'any(.list[]; .policyName == $n)' >/dev/null; then
+    jq -nc --arg n "$name" --argjson r "$requests" --arg u "$unit" '{
+        policyName: $n, displayName: $n,
+        description: "OpenGate: \($r) requests per \($u) to the provider, shared by all developers",
+        defaultLimit: { type: "REQUESTCOUNTLIMIT",
+          requestCount: { requestCount: $r, unitTime: 1, timeUnit: $u } },
+        conditionalGroups: [] }' |
+      wso2 "${auth[@]}" -H 'Content-Type: application/json' "$ADMIN/throttling/policies/advanced" -d @- >/dev/null
+    echo "  created the $name policy in WSO2" >&2
+  fi
+  echo "$name"
 }
 
 # "VERB /path" lines for an OpenAPI document, sorted; what the gateway routes on.
@@ -112,10 +140,10 @@ seed() {
   # Provider key: endpoint security for WSO2, and properties that say it's
   # managed (shown to developers) plus a fingerprint to spot a changed key.
   # The key itself only travels through environment variables and stdin.
-  local key_config security="null" properties="[]" fingerprint="" response_policies="[]"
+  local key_config key_env="" security="null" properties="[]" fingerprint="" response_policies="[]"
   key_config=$(jq -c '.["x-opengate"].providerKey // empty' "$file")
   if [[ -n $key_config ]]; then
-    local key_in key_name key_env
+    local key_in key_name
     key_in=$(jq -r .in <<<"$key_config")
     key_name=$(jq -r .name <<<"$key_config")
     key_env=$(jq -r .env <<<"$key_config")
@@ -140,12 +168,29 @@ seed() {
       { name: "providerKeyFingerprint", value: $fp, display: false } ]')
   fi
 
+  # Shared upstream limit: the demo-key limit while the fallback key is used.
+  local limit limit_policy_name="" limit_label=""
+  limit=$(jq -c '.["x-opengate"].upstreamLimit // empty' "$file")
+  if [[ -n $key_env ]] && [[ -z ${!key_env:-} ]] && jq -e '.fallbackLimit' <<<"$key_config" >/dev/null; then
+    limit=$(jq -c .fallbackLimit <<<"$key_config")
+  fi
+  if [[ -n $limit ]]; then
+    local requests per
+    requests=$(jq -r .requests <<<"$limit")
+    per=$(jq -r .per <<<"$limit")
+    [[ $requests =~ ^[1-9][0-9]*$ && $per =~ ^(min|hour|day)$ ]] ||
+      { echo "$file: limits need a positive whole \"requests\" and \"per\" of min, hour or day" >&2; exit 1; }
+    limit_policy_name=$(limit_policy "$requests" "$per")
+    limit_label="$requests requests per $([[ $per == min ]] && echo minute || echo "$per"), shared by all developers"
+    properties=$(jq -c --arg v "$limit_label" '. + [{ name: "upstreamLimit", value: $v, display: true }]' <<<"$properties")
+  fi
+
   local id
   id=$(wso2 "${auth[@]}" -G "$PUBLISHER/apis" --data-urlencode "query=name:\"$name\"" |
     jq -r --arg name "$name" --arg version "$version" \
       '.list[] | select(.name == $name and .version == $version) | .id' | head -n1)
 
-  local before="" key_changed=""
+  local before="" key_changed="" limit_changed=""
   if [[ -z $id ]]; then
     local operations body
     operations=$(jq '[.paths | to_entries[] | .key as $p | .value | to_entries[]
@@ -167,8 +212,9 @@ seed() {
           production_endpoints: { url: $backend },
           sandbox_endpoints: { url: $backend }
         }
-      }' | jq --argjson security "$security" \
-        'if $security then .endpointConfig.endpoint_security = $security else . end')
+      }' | jq --argjson security "$security" --arg limit "$limit_policy_name" \
+        'if $security then .endpointConfig.endpoint_security = $security else . end
+         | if $limit != "" then .apiThrottlingPolicy = $limit else . end')
     # stdin, not an argument: the body may hold the provider key.
     id=$(wso2 "${auth[@]}" -H 'Content-Type: application/json' "$PUBLISHER/apis" -d @- <<<"$body" | jq -r .id)
     echo "  created $name $version ($id)"
@@ -181,24 +227,30 @@ seed() {
     api=$(wso2 "${auth[@]}" "$PUBLISHER/apis/$id")
     current_fp=$(jq -r '[.additionalProperties[]? | select(.name == "providerKeyFingerprint") | .value][0] // ""' <<<"$api")
     [[ $current_fp != "$fingerprint" ]] && key_changed=1
+    [[ $(jq -r '.apiThrottlingPolicy // ""' <<<"$api") != "$limit_policy_name" ]] && limit_changed=1
     if [[ $(jq -r '.description // ""' <<<"$api") != "$description" ||
           $(jq -c '.tags | sort' <<<"$api") != "$(jq -c 'sort' <<<"$tags")" ||
-          -n ${key_changed:-} ]]; then
+          -n ${key_changed:-} || -n ${limit_changed:-} ]]; then
       # WSO2 never returns a stored key, so a keyed API's PUT must always carry
       # it again, or the update would wipe it.
       jq --arg d "$description" --argjson t "$tags" --argjson security "$security" \
         --argjson properties "$properties" --argjson response_policies "$response_policies" \
-        --arg rp "$REDACT_POLICY" '
+        --arg rp "$REDACT_POLICY" --arg limit "$limit_policy_name" '
         .description = $d | .tags = $t
-        | .additionalProperties = ([.additionalProperties[]? | select(.name | startswith("providerKey") | not)] + $properties)
+        | .apiThrottlingPolicy = (if $limit == "" then null else $limit end)
+        | .additionalProperties = ([.additionalProperties[]?
+            | select((.name | startswith("providerKey")) or .name == "upstreamLimit" | not)] + $properties)
         | .apiPolicies.response = ([.apiPolicies.response[]? | select(.policyName != $rp)] + $response_policies)
         | if $security then .endpointConfig.endpoint_security = $security
           else del(.endpointConfig.endpoint_security) end' <<<"$api" |
         wso2 "${auth[@]}" -X PUT -H 'Content-Type: application/json' "$PUBLISHER/apis/$id" -d @- >/dev/null
+      if [[ -n ${limit_changed:-} ]]; then
+        echo "    shared limit: ${limit_label:-none}"
+      fi
       if [[ -n ${key_changed:-} ]]; then
         echo "    updated provider key"
       else
-        echo "    updated description and tags"
+        [[ -z ${limit_changed:-} ]] && echo "    updated description and tags"
       fi
     fi
   fi
@@ -212,7 +264,8 @@ seed() {
   # if the endpoints or provider key changed. Docs-only changes don't need it.
   local deployed
   deployed=$(wso2 "${auth[@]}" "$PUBLISHER/apis/$id/deployments" | jq 'length')
-  if [[ $deployed == 0 || -n $key_changed || $before != "$(resources <<<"$definition")" ]]; then
+  if [[ $deployed == 0 || -n $key_changed || -n $limit_changed ||
+        $before != "$(resources <<<"$definition")" ]]; then
     # WSO2 keeps at most 5 revisions; drop the ones that aren't deployed.
     for old in $(wso2 "${auth[@]}" "$PUBLISHER/apis/$id/revisions?query=deployed:false" | jq -r '.list[].id'); do
       wso2 "${auth[@]}" -X DELETE "$PUBLISHER/apis/$id/revisions/$old" >/dev/null

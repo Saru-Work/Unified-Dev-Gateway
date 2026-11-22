@@ -401,10 +401,27 @@ layout itself, such as the backend being unreachable.
   parameters in URLs and JSON fields. WSO2 4.7.0 has no JavaScript engine for
   script mediators and no built-in "remove query parameter" policy, hence this
   approach.
+- **Shared upstream limits.** `x-opengate.upstreamLimit` becomes a WSO2
+  *API-level* advanced throttling policy (`OpenGate<n>Per<Unit>`, created
+  through the Admin REST API), which counts calls from all applications
+  together, unlike subscription tiers. Exceeding it gives `429` with code
+  900800. Counting is asynchronous: a 3-per-minute limit let 4 calls through.
+- **Container start-up** (`wso2-config/wso2-start.sh`, the compose
+  entrypoint, before the image's own): turns on `elk` analytics; makes WSO2
+  rebuild its Solr search index when the index is empty but the database
+  isn't (listings would otherwise stay empty forever, as the "indexed up to"
+  time lives in the database), via a new `[indexing] re_indexing` number kept
+  with the index; and pins the `[encryption]` key, which the image otherwise
+  regenerates in every new container, breaking every secret encrypted before
+  (seen as `CryptoException` for NASA's provider key). The key comes from
+  `WSO2_ENCRYPTION_KEY`, else a file on the database volume. A `wso2am-init`
+  busybox service gives the new `solr` volume to WSO2's user, as the image has
+  no such directory to copy ownership from.
 - The seed script marks key-included APIs with additional properties:
   `providerKey: managed` (displayed, so the DevPortal API and OpenGate's
-  `/apis/:id` show it) and `providerKeyFingerprint` (hidden; a SHA-256 prefix of
-  the key settings, used to detect rotation).
+  `/apis/:id` show it), `upstreamLimit` (displayed, e.g. "900 requests per
+  hour, shared by all developers") and `providerKeyFingerprint` (hidden; a
+  SHA-256 prefix of the key settings, used to detect rotation).
 - `wso2-config/apis` and `wso2-config/sequences` are set aside for API
   definitions and mediation sequences, but they're empty and not mounted
   into the container yet.
@@ -415,7 +432,7 @@ layout itself, such as the backend being unreachable.
 
 | Area | Gap | Suggested direction |
 |------|-----|---------------------|
-| Provider keys | One provider key per API, shared by every developer, so the provider's quota is shared too; no per-developer upstream quota or usage view. Query-parameter keys are appended after a caller's own. | Per-API backend rate limits sized to the provider plan; usage per application; prefer header keys. |
+| Provider keys | One provider key per API, shared by every developer. A shared limit protects the provider's quota, but one developer can still take all of it. Query-parameter keys are appended after a caller's own. | Fair-share limits per application; prefer header keys. |
 | WSO2 credentials | The backend acts as one WSO2 account (default `admin`, via the password grant), so all apps share it and names are unique across users. | Use a dedicated least-privilege WSO2 user. Consider per-user WSO2 subscribers if apps must be separated in WSO2 itself. |
 | Application lifecycle | Keys use the client-credentials grant only; no API keys. Regenerating a secret fails on WSO2 4.7.0; deleting the keys and generating new ones is the workaround, but it revokes existing tokens with no overlap. The automated tests use a fake WSO2. | Find why WSO2 4.7.0's key manager rejects the secret update. Configurable grant types. Automate an end-to-end test against the compose stack. |
 | Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token, so changing the password doesn't sign out other sessions. | Refresh token in an httpOnly cookie, rotated on each use. |

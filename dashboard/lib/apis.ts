@@ -15,6 +15,14 @@ export type CatalogApi = Wso2Api & {
   providerKeyIncluded: boolean;
 };
 
+/** A custom property's value, e.g. "upstreamLimit" (set by the seed script). */
+export function apiProperty(
+  api: Pick<Wso2ApiDetail, "additionalProperties"> | undefined,
+  name: string,
+): string | undefined {
+  return api?.additionalProperties?.find((p) => p.name === name)?.value;
+}
+
 /** Whether the gateway adds the upstream provider's key (set by the seed script). */
 export function providerKeyIncluded(api: Pick<Wso2ApiDetail, "additionalProperties"> | undefined): boolean {
   return Boolean(api?.additionalProperties?.some((p) => p.name === "providerKey" && p.value === "managed"));

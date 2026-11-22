@@ -7,7 +7,7 @@ import { CopyButton } from "@/app/copy-button";
 import { ApiIcon } from "@/app/ui/api-icon";
 import { PageHeader } from "@/app/ui/page-header";
 import { backend, BackendError, describeError } from "@/lib/backend";
-import { providerKeyIncluded, splitDocsLink } from "@/lib/apis";
+import { apiProperty, providerKeyIncluded, splitDocsLink } from "@/lib/apis";
 import { tagLabel } from "@/lib/categories";
 import { requireUser } from "@/lib/session";
 import type { ApiOperation, Application, Wso2ApiDetail } from "@/lib/types";
@@ -48,6 +48,7 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
       .map((url) => ({ env: env.environmentDisplayName ?? env.environmentName, url })),
   );
   const { text, docs: docsUrl } = splitDocsLink(api.description);
+  const sharedLimit = apiProperty(api, "upstreamLimit");
 
   return (
     <>
@@ -79,7 +80,13 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
               <p>
                 <strong className="font-medium">Provider key included.</strong> This API normally
                 needs its own key from the provider; OpenGate adds it for you at the gateway. Call it
-                with your OpenGate access token only, and don&apos;t send a provider key yourself.{" "}
+                with your OpenGate access token only, and don&apos;t send a provider key yourself.
+                {sharedLimit && (
+                  <>
+                    {" "}Calls are capped at <strong className="font-medium">{sharedLimit}</strong>{" "}
+                    to protect the provider&apos;s quota; past that the gateway answers 429.
+                  </>
+                )}{" "}
                 <Link href="/docs#provider-keys" className="link">How this works</Link>
               </p>
             </div>
@@ -128,6 +135,12 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
               )}
               <dt className="text-muted">Endpoints</dt>
               <dd>{docs.operations.length}</dd>
+              {sharedLimit && (
+                <>
+                  <dt className="text-muted">Shared limit</dt>
+                  <dd>{sharedLimit}</dd>
+                </>
+              )}
             </dl>
             {tiers.length > 0 && (
               <div className="flex flex-col gap-2">

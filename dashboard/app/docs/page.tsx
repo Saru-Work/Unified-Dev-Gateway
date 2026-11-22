@@ -358,9 +358,11 @@ export default function DocsPage() {
                 <code>*****</code> before the response reaches you.
               </li>
               <li>
-                Everyone using a key-included API shares the provider&apos;s limits, so your
-                tier&apos;s limit isn&apos;t the only one that applies. Check the API&apos;s
-                description.
+                Everyone using a key-included API shares the provider&apos;s quota. To protect
+                it, these APIs have a <strong>shared limit</strong> across all developers (for
+                example 900 requests an hour), shown under <strong>Details</strong> on the
+                API&apos;s page. Past it, the gateway answers <code>429</code> until the limit
+                resets, whatever your own tier.
               </li>
             </ul>
           </Section>
@@ -490,7 +492,12 @@ curl -s $API/applications/$APP/keys/$MAPPING/token -H "$AUTH" \\
                   <td>Check the gateway URL. New APIs take about 15 seconds to come online.</td>
                 </tr>
                 <tr>
-                  <td><code>429</code></td>
+                  <td><code>429</code> 900800 Message throttled out</td>
+                  <td>The API&apos;s shared limit across all developers is used up (common on key-included APIs).</td>
+                  <td>Wait until the time in the message. A higher tier doesn&apos;t help.</td>
+                </tr>
+                <tr>
+                  <td><code>429</code> (other codes)</td>
                   <td>Your tier&apos;s or application&apos;s limit is used up, or the upstream API&apos;s own limit.</td>
                   <td>Wait, or subscribe on a higher tier.</td>
                 </tr>
@@ -576,6 +583,14 @@ scripts/seed-public-apis.sh`}</Code>
               <li><code>env</code>: the environment variable (or <code>.env</code> entry) holding the key.</li>
               <li><code>redact</code>: optional; query parameters to mask in responses, for providers that echo the key.</li>
             </ul>
+            <p>
+              Add <code>&quot;upstreamLimit&quot;: {"{"} &quot;requests&quot;: 900, &quot;per&quot;: &quot;hour&quot; {"}"}</code>{" "}
+              to <code>x-opengate</code> to cap the calls all developers together can send to the
+              provider (<code>per</code> is <code>min</code>, <code>hour</code> or{" "}
+              <code>day</code>), and <code>fallbackLimit</code> inside <code>providerKey</code>{" "}
+              for while a demo key is in use. WSO2 counts asynchronously, so a few calls can get
+              past the limit: set it a little below the provider&apos;s real quota.
+            </p>
             <p>
               The seed script stores the key in WSO2 as encrypted endpoint security, marks the API
               as <strong>Key included</strong>, and installs a response policy that masks the{" "}

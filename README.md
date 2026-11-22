@@ -180,6 +180,18 @@ token. Add a `providerKey` block to the file's `x-opengate`:
 | `env` | The environment variable holding the key. The scripts also read the repo's `.env` (as data, never executed); real environment variables win. Keys never go in the API file. |
 | `fallback` | Optional: a provider's *public* demo key, used when `env` isn't set. |
 | `redact` | Optional: query parameter names whose values the gateway masks in responses (`api_key=*****`, and `"api_key":"*****"` in JSON), for providers that echo the key back. NASA does, in every link. |
+| `fallbackLimit` | Optional: the shared limit (see below) to use while `fallback` is in use, since demo keys allow far less. |
+
+**Shared limits.** Everyone using a key-included API shares the provider's
+quota, so one busy developer could use it up for all. `"upstreamLimit":
+{ "requests": 900, "per": "hour" }` in `x-opengate` (`per`: `min`, `hour` or
+`day`) caps the calls the gateway sends to the provider from all developers
+together. The seed script creates a WSO2 API-level policy named
+`OpenGate<n>Per<Unit>` and applies it; past the limit the gateway answers
+`429` (code 900800) for everyone until it resets. WSO2 counts asynchronously,
+so a call or two can get past the limit (verified: a limit of 3 per minute let
+4 through): set it a little below the provider's real quota. NASA's file uses
+900 an hour (NASA allows 1,000) and 25 an hour on `DEMO_KEY`.
 
 What the seed script does with it:
 
@@ -596,5 +608,7 @@ npm run dev      # http://localhost:3000
 | `502 OpenGate couldn't authenticate with WSO2` | The backend couldn't get its WSO2 token. Check `WSO2_USERNAME` / `WSO2_PASSWORD` and the backend log line *Failed to get a WSO2 token* ([§4.4](#44-how-opengate-talks-to-wso2)). |
 | WSO2 calls return `403` | OpenGate's WSO2 account lacks permission. Give it the `Internal/subscriber` role. |
 | **Regenerate secret** returns WSO2's `500` (`900967 General Error`) | WSO2 4.7.0's key manager rejects the secret update (its log shows *Error while generating new consumer secret … status code: 400*), even when called directly on WSO2. Until that's sorted, use **Delete keys** and generate new ones. |
+| `/apis` and WSO2's own portals list no APIs after recreating the WSO2 container | WSO2's search index was empty while its database still said "indexed". `wso2-config/wso2-start.sh` now detects an empty index and has WSO2 rebuild it (about 30 seconds); the index lives on the `wso2am-470-solr` volume. |
+| WSO2 logs *Error while decrypting … for API* | The data was encrypted with a different `[encryption]` key. WSO2's image generates a random key in every new container; `wso2-start.sh` keeps one key on the database volume (or use `WSO2_ENCRYPTION_KEY` in `.env`). Re-run `scripts/seed-public-apis.sh` to re-store provider keys if needed. |
 | `/apis` returns an empty list | No APIs are published (or none are public) in WSO2 yet. |
 | Dashboard says "Something went wrong" | The dashboard can't reach the backend. Check `docker compose ps` and that `BACKEND_URL` points at it (compose: `http://backend:4000`). |

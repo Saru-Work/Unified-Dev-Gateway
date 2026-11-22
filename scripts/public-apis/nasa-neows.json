@@ -12,6 +12,10 @@
       "space",
       "science"
     ],
+    "upstreamLimit": {
+      "requests": 900,
+      "per": "hour"
+    },
     "providerKey": {
       "in": "header",
       "name": "X-Api-Key",
@@ -19,7 +23,11 @@
       "fallback": "DEMO_KEY",
       "redact": [
         "api_key"
-      ]
+      ],
+      "fallbackLimit": {
+        "requests": 25,
+        "per": "hour"
+      }
     }
   },
   "paths": {
