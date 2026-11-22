@@ -1,0 +1,12 @@
+<!--
+  OpenGate: masks provider keys that an upstream API echoes back, e.g. in
+  links like ...?api_key=XYZ or JSON fields like "api_key":"XYZ". Reuses the
+  regex masking mediator that ships with WSO2 API Manager 4.7 (its own policy
+  is limited to AI APIs). {{params}} is a |-separated list of parameter names,
+  checked by scripts/seed-public-apis.sh to be [A-Za-z0-9_-]+ only.
+-->
+<class name="org.wso2.apim.policies.mediation.ai.pii.masking.regex.PIIMaskingRegex">
+    <property action="set" name="name" value="opengateRedactQueryParams"/>
+    <property action="set" name="piiEntities" value='[{"piiEntity":"providerKeyInUrl","piiRegex":"(?&lt;=[?&amp;](?:{{params}})=)[^&amp;\"\\s]+"},{"piiEntity":"providerKeyInJson","piiRegex":"(?&lt;=\"(?:{{params}})\":\")[^\"]+"}]'/>
+    <property action="set" name="redact" type="BOOLEAN" value="true"/>
+</class>

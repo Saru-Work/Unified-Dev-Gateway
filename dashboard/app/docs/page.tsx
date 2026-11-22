@@ -17,6 +17,7 @@ const SECTIONS = [
   { id: "applications", title: "Applications" },
   { id: "subscriptions", title: "Subscriptions and tiers" },
   { id: "keys", title: "Keys and access tokens" },
+  { id: "provider-keys", title: "Provider keys" },
   { id: "calling-an-api", title: "Calling an API" },
   { id: "automation", title: "Automating with the OpenGate API" },
   { id: "troubleshooting", title: "Troubleshooting" },
@@ -337,6 +338,33 @@ export default function DocsPage() {
             </Note>
           </Section>
 
+          <Section id="provider-keys" title="Provider keys">
+            <p>
+              Many APIs need a key from their provider: you&apos;d normally sign up on the
+              provider&apos;s site, get a key, and send it with every call. In OpenGate, APIs
+              marked <strong>Key included</strong> don&apos;t need that. OpenGate holds the
+              provider&apos;s key and the gateway adds it to each call on its way to the
+              provider.
+            </p>
+            <ul>
+              <li>Call these APIs with your OpenGate access token only, like any other API.</li>
+              <li>
+                Don&apos;t send a provider key yourself. The gateway sets its own, and for APIs
+                that take the key in the query string your extra one may confuse the provider.
+              </li>
+              <li>
+                You never see the provider&apos;s key. If a provider repeats its key in a response
+                (NASA puts it in links, for example), the gateway masks it as{" "}
+                <code>*****</code> before the response reaches you.
+              </li>
+              <li>
+                Everyone using a key-included API shares the provider&apos;s limits, so your
+                tier&apos;s limit isn&apos;t the only one that applies. Check the API&apos;s
+                description.
+              </li>
+            </ul>
+          </Section>
+
           <Section id="calling-an-api" title="Calling an API">
             <p>A call&apos;s address is the gateway, then the API&apos;s context and version, then the endpoint path:</p>
             <Code>{`${GATEWAY}/<context>/<version>/<path>
@@ -530,6 +558,32 @@ scripts/seed-public-apis.sh`}</Code>
             <p>
               The README&apos;s <em>Sample APIs</em> section describes the file format.
             </p>
+            <h3>APIs that need a provider key</h3>
+            <p>
+              Add a <code>providerKey</code> block to the file&apos;s <code>x-opengate</code>{" "}
+              section saying where the key goes and which environment variable holds it, and put
+              the key in <code>.env</code> (never in the file):
+            </p>
+            <Code>{`"providerKey": {
+  "in": "header",
+  "name": "X-Api-Key",
+  "env": "NASA_API_KEY",
+  "redact": ["api_key"]
+}`}</Code>
+            <ul>
+              <li><code>in</code>: <code>header</code> or <code>query</code>, wherever the provider expects the key. Prefer <code>header</code> when the provider accepts it.</li>
+              <li><code>name</code>: the header or query parameter name.</li>
+              <li><code>env</code>: the environment variable (or <code>.env</code> entry) holding the key.</li>
+              <li><code>redact</code>: optional; query parameters to mask in responses, for providers that echo the key.</li>
+            </ul>
+            <p>
+              The seed script stores the key in WSO2 as encrypted endpoint security, marks the API
+              as <strong>Key included</strong>, and installs a response policy that masks the{" "}
+              <code>redact</code> parameters. Changing the key in <code>.env</code> and re-running
+              the script rotates it. The example recorder refuses an API whose responses contain
+              the key unless <code>redact</code> covers it. In the WSO2 Publisher the same thing
+              is <strong>Endpoints → Endpoint security → API Key</strong>.
+            </p>
           </Section>
 
           <Section id="faq" title="FAQ">
@@ -537,6 +591,12 @@ scripts/seed-public-apis.sh`}</Code>
             <p>No. OpenGate creates and manages everything in WSO2 for you.</p>
             <h3>Can other developers see my applications?</h3>
             <p>No. Each developer sees and manages only their own.</p>
+            <h3>Do I need accounts with each API provider?</h3>
+            <p>
+              Not for APIs marked <strong>Key included</strong>: OpenGate supplies the
+              provider&apos;s key. One OpenGate account and one access token work for every API
+              your application is subscribed to.
+            </p>
             <h3>Does OpenGate keep my consumer secret?</h3>
             <p>
               No. It&apos;s shown once when the keys are generated. To get a token later, paste

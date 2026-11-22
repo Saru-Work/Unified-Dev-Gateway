@@ -1,4 +1,4 @@
-import { ChevronRight, Search, SearchX } from "lucide-react";
+import { ChevronRight, KeyRound, Search, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ApiIcon } from "@/app/ui/api-icon";
@@ -117,6 +117,11 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
                       <span className="flex items-baseline gap-2">
                         <span className="font-medium group-hover:text-accent">{api.name}</span>
                         <span className="font-mono text-[11px] text-muted">v{api.version}</span>
+                        {api.providerKeyIncluded && (
+                          <span className="badge-accent" title="OpenGate adds the provider's API key">
+                            <KeyRound aria-hidden className="size-3" /> Key included
+                          </span>
+                        )}
                       </span>
                       <span className="line-clamp-1 text-sm text-muted">{splitDocsLink(api.description).text}</span>
                     </span>

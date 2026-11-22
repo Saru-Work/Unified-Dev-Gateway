@@ -1,0 +1,22 @@
+type: operation_policy_specification
+version: v4.7.0
+data:
+  category: Mediation
+  name: opengateRedactQueryParams
+  version: v1
+  displayName: OpenGate - redact query parameters in responses
+  description: Replaces the values of the named query parameters (e.g. api_key=...) anywhere in a response body with *****, so a provider key the gateway adds is never echoed back to developers.
+  applicableFlows:
+   - response
+  supportedGateways:
+   - Synapse
+  supportedApiTypes:
+   - HTTP
+  policyAttributes:
+   -
+    name: params
+    displayName: Parameter names
+    description: Query parameter names whose values are masked, separated by |, e.g. api_key|apikey
+    type: String
+    allowedValues: []
+    required: true

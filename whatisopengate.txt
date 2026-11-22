@@ -76,6 +76,10 @@ For the organisation (the people running APIs):
     their own applications.
   - Publish documentation once, in each API's OpenAPI definition, and have
     it appear in the portal automatically.
+  - Offer APIs that normally need a provider key without developers ever
+    getting one: OpenGate holds the provider's key, the gateway adds it to
+    each call, and masks it if the provider echoes it back. Developers just
+    see "Key included" and use their OpenGate token.
   - Seed the catalog from files in the repository (scripts/public-apis/),
     with a script that checks every documented endpoint against the real
     API and records real example responses.
@@ -191,7 +195,7 @@ EXAMPLE SCENARIOS
     shared admin credentials.
 
   Teaching and demos
-    With the 18 sample public APIs seeded in, OpenGate shows the whole
+    With the 19 sample APIs seeded in (one with a provider key included), OpenGate shows the whole
     API-management lifecycle (publish, discover, subscribe, get keys, get a
     token, call through the gateway) in a few minutes.
 
@@ -212,6 +216,9 @@ WHY IT'S SAFE TO PUT IN FRONT OF DEVELOPERS
 
 WHAT IT DOESN'T DO YET
 ----------------------
+
+  - Provider quotas are shared: everyone using a key-included API shares the
+    provider's limits, and there's no per-developer usage view yet.
 
 These matter before opening OpenGate to the public internet:
 

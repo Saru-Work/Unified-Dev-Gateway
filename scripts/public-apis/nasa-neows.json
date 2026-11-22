@@ -1,0 +1,492 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "NasaAsteroids",
+    "version": "1.0.0",
+    "description": "Near-Earth asteroids from NASA's NeoWs service: close approaches by date, and details of any asteroid by ID. OpenGate adds NASA's API key for you. Docs: https://api.nasa.gov"
+  },
+  "x-opengate": {
+    "context": "/nasa/neo",
+    "backend": "https://api.nasa.gov/neo/rest/v1",
+    "tags": [
+      "space",
+      "science"
+    ],
+    "providerKey": {
+      "in": "header",
+      "name": "X-Api-Key",
+      "env": "NASA_API_KEY",
+      "fallback": "DEMO_KEY",
+      "redact": [
+        "api_key"
+      ]
+    }
+  },
+  "paths": {
+    "/feed": {
+      "get": {
+        "summary": "Asteroids passing close to Earth between two dates",
+        "description": "Grouped by date. The range can be at most 7 days.",
+        "parameters": [
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": true,
+            "description": "First day, as YYYY-MM-DD.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-11-20"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "Last day, as YYYY-MM-DD; 7 days after start_date if left out.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-11-21"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How many asteroids, and each one's size, speed and miss distance by date",
+            "content": {
+              "application/json": {
+                "example": {
+                  "element_count": 7,
+                  "links": {
+                    "next": "http://api.nasa.gov/neo/rest/v1/feed?start_date=2026-11-21&end_date=2026-11-22&detailed=false&api_key=*****",
+                    "previous": "http://api.nasa.gov/neo/rest/v1/feed?start_date=2026-11-19&end_date=2026-11-20&detailed=false&api_key=*****",
+                    "self": "http://api.nasa.gov/neo/rest/v1/feed?start_date=2026-11-20&end_date=2026-11-21&detailed=false&api_key=*****"
+                  },
+                  "near_earth_objects": {
+                    "2026-11-21": [
+                      {
+                        "absolute_magnitude_h": 24,
+                        "close_approach_data": [
+                          {}
+                        ],
+                        "estimated_diameter": {
+                          "feet": {},
+                          "kilometers": {},
+                          "meters": {},
+                          "miles": {}
+                        },
+                        "id": "3447917",
+                        "is_potentially_hazardous_asteroid": false,
+                        "is_sentry_object": false,
+                        "links": {
+                          "self": "http://api.nasa.gov/neo/rest/v1/neo/3447917?api_key=*****"
+                        },
+                        "name": "(2009 DC1)",
+                        "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=3447917",
+                        "neo_reference_id": "3447917"
+                      },
+                      {
+                        "absolute_magnitude_h": 22.3,
+                        "close_approach_data": [
+                          {}
+                        ],
+                        "estimated_diameter": {
+                          "feet": {},
+                          "kilometers": {},
+                          "meters": {},
+                          "miles": {}
+                        },
+                        "id": "3790063",
+                        "is_potentially_hazardous_asteroid": false,
+                        "is_sentry_object": false,
+                        "links": {
+                          "self": "http://api.nasa.gov/neo/rest/v1/neo/3790063?api_key=*****"
+                        },
+                        "name": "(2017 WR28)",
+                        "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=3790063",
+                        "neo_reference_id": "3790063"
+                      }
+                    ],
+                    "2026-11-20": [
+                      {
+                        "absolute_magnitude_h": 19.89,
+                        "close_approach_data": [
+                          {}
+                        ],
+                        "estimated_diameter": {
+                          "feet": {},
+                          "kilometers": {},
+                          "meters": {},
+                          "miles": {}
+                        },
+                        "id": "3623675",
+                        "is_potentially_hazardous_asteroid": false,
+                        "is_sentry_object": false,
+                        "links": {
+                          "self": "http://api.nasa.gov/neo/rest/v1/neo/3623675?api_key=*****"
+                        },
+                        "name": "(2013 AZ52)",
+                        "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=3623675",
+                        "neo_reference_id": "3623675"
+                      },
+                      {
+                        "absolute_magnitude_h": 21.37,
+                        "close_approach_data": [
+                          {}
+                        ],
+                        "estimated_diameter": {
+                          "feet": {},
+                          "kilometers": {},
+                          "meters": {},
+                          "miles": {}
+                        },
+                        "id": "3752784",
+                        "is_potentially_hazardous_asteroid": true,
+                        "is_sentry_object": false,
+                        "links": {
+                          "self": "http://api.nasa.gov/neo/rest/v1/neo/3752784?api_key=*****"
+                        },
+                        "name": "(2016 JC6)",
+                        "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=3752784",
+                        "neo_reference_id": "3752784"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad dates, or a range longer than 7 days"
+          }
+        }
+      }
+    },
+    "/neo/{asteroid_id}": {
+      "get": {
+        "summary": "One asteroid",
+        "description": "Its size, orbit, whether it's potentially hazardous, and its close approaches past and future.",
+        "parameters": [
+          {
+            "name": "asteroid_id",
+            "in": "path",
+            "required": true,
+            "description": "NASA JPL small-body ID (from the feed or browse results).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "2000433"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The asteroid",
+            "content": {
+              "application/json": {
+                "example": {
+                  "absolute_magnitude_h": 10.4,
+                  "close_approach_data": [
+                    {
+                      "close_approach_date": "1900-12-27",
+                      "close_approach_date_full": "1900-Dec-27 01:30",
+                      "epoch_date_close_approach": -2177879400000,
+                      "miss_distance": {
+                        "astronomical": "0.3149291693",
+                        "kilometers": "47112732.928149391",
+                        "lunar": "122.5074468577",
+                        "miles": "29274494.7651919558"
+                      },
+                      "orbiting_body": "Earth",
+                      "relative_velocity": {
+                        "kilometers_per_hour": "20083.0290749201",
+                        "kilometers_per_second": "5.5786191875",
+                        "miles_per_hour": "12478.8132604691"
+                      }
+                    },
+                    {
+                      "close_approach_date": "1907-11-05",
+                      "close_approach_date_full": "1907-Nov-05 03:31",
+                      "epoch_date_close_approach": -1961526540000,
+                      "miss_distance": {
+                        "astronomical": "0.4714855425",
+                        "kilometers": "70533232.893794475",
+                        "lunar": "183.4078760325",
+                        "miles": "43827318.620434755"
+                      },
+                      "orbiting_body": "Earth",
+                      "relative_velocity": {
+                        "kilometers_per_hour": "15820.1671985367",
+                        "kilometers_per_second": "4.3944908885",
+                        "miles_per_hour": "9830.0366684463"
+                      }
+                    }
+                  ],
+                  "designation": "433",
+                  "estimated_diameter": {
+                    "feet": {
+                      "estimated_diameter_max": 162190.3570994153,
+                      "estimated_diameter_min": 72533.7327538517
+                    },
+                    "kilometers": {
+                      "estimated_diameter_max": 49.435619262,
+                      "estimated_diameter_min": 22.1082810359
+                    },
+                    "meters": {
+                      "estimated_diameter_max": 49435.619261962,
+                      "estimated_diameter_min": 22108.281035909
+                    },
+                    "miles": {
+                      "estimated_diameter_max": 30.7178601764,
+                      "estimated_diameter_min": 13.7374446956
+                    }
+                  },
+                  "id": "2000433",
+                  "is_potentially_hazardous_asteroid": false,
+                  "is_sentry_object": false,
+                  "links": {
+                    "self": "http://api.nasa.gov/neo/rest/v1/neo/2000433?api_key=*****"
+                  },
+                  "name": "433 Eros (A898 PA)",
+                  "name_limited": "Eros",
+                  "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=2000433",
+                  "neo_reference_id": "2000433",
+                  "orbital_data": {
+                    "aphelion_distance": "1.783254105573937",
+                    "ascending_node_longitude": "304.2679713350896",
+                    "data_arc_in_days": 46582,
+                    "eccentricity": ".2228779627700761",
+                    "epoch_osculation": "2461200.5",
+                    "equinox": "J2000",
+                    "first_observation_date": "1893-10-29",
+                    "inclination": "10.82854410314273",
+                    "jupiter_tisserand_invariant": "4.582",
+                    "last_observation_date": "2021-05-13",
+                    "mean_anomaly": "62.51145501986792",
+                    "mean_motion": ".5597046347038453",
+                    "minimum_orbit_intersection": ".148798",
+                    "observations_used": 9130,
+                    "orbit_class": {
+                      "orbit_class_type": "AMO",
+                      "orbit_class_description": "Near-Earth asteroid orbits similar to that of 1221 Amor",
+                      "orbit_class_range": "1.017 AU < q (perihelion) < 1.3 AU"
+                    },
+                    "orbit_determination_date": "2021-05-24 17:55:05",
+                    "orbit_id": "659",
+                    "orbit_uncertainty": "0",
+                    "orbital_period": "643.1963890927677",
+                    "perihelion_argument": "178.9181319135911"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No asteroid with that ID"
+          }
+        }
+      }
+    },
+    "/neo/browse": {
+      "get": {
+        "summary": "Browse all known near-Earth asteroids",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, from 0.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 0
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Asteroids per page (up to 20).",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "example": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of asteroids, with paging info",
+            "content": {
+              "application/json": {
+                "example": {
+                  "links": {
+                    "next": "http://api.nasa.gov/neo/rest/v1/neo/browse?page=1&size=2&api_key=*****",
+                    "self": "http://api.nasa.gov/neo/rest/v1/neo/browse?page=0&size=2&api_key=*****"
+                  },
+                  "near_earth_objects": [
+                    {
+                      "absolute_magnitude_h": 10.4,
+                      "close_approach_data": [
+                        {
+                          "close_approach_date": "1900-12-27",
+                          "close_approach_date_full": "1900-Dec-27 01:30",
+                          "epoch_date_close_approach": -2177879400000,
+                          "miss_distance": {},
+                          "orbiting_body": "Earth",
+                          "relative_velocity": {}
+                        },
+                        {
+                          "close_approach_date": "1907-11-05",
+                          "close_approach_date_full": "1907-Nov-05 03:31",
+                          "epoch_date_close_approach": -1961526540000,
+                          "miss_distance": {},
+                          "orbiting_body": "Earth",
+                          "relative_velocity": {}
+                        }
+                      ],
+                      "designation": "433",
+                      "estimated_diameter": {
+                        "feet": {
+                          "estimated_diameter_max": 162190.3570994153,
+                          "estimated_diameter_min": 72533.7327538517
+                        },
+                        "kilometers": {
+                          "estimated_diameter_max": 49.435619262,
+                          "estimated_diameter_min": 22.1082810359
+                        },
+                        "meters": {
+                          "estimated_diameter_max": 49435.619261962,
+                          "estimated_diameter_min": 22108.281035909
+                        },
+                        "miles": {
+                          "estimated_diameter_max": 30.7178601764,
+                          "estimated_diameter_min": 13.7374446956
+                        }
+                      },
+                      "id": "2000433",
+                      "is_potentially_hazardous_asteroid": false,
+                      "is_sentry_object": false,
+                      "links": {
+                        "self": "http://api.nasa.gov/neo/rest/v1/neo/2000433?api_key=*****"
+                      },
+                      "name": "433 Eros (A898 PA)",
+                      "name_limited": "Eros",
+                      "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=2000433",
+                      "neo_reference_id": "2000433",
+                      "orbital_data": {
+                        "aphelion_distance": "1.783254105573937",
+                        "ascending_node_longitude": "304.2679713350896",
+                        "data_arc_in_days": 46582,
+                        "eccentricity": ".2228779627700761",
+                        "epoch_osculation": "2461200.5",
+                        "equinox": "J2000",
+                        "first_observation_date": "1893-10-29",
+                        "inclination": "10.82854410314273",
+                        "jupiter_tisserand_invariant": "4.582",
+                        "last_observation_date": "2021-05-13",
+                        "mean_anomaly": "62.51145501986792",
+                        "mean_motion": ".5597046347038453",
+                        "minimum_orbit_intersection": ".148798",
+                        "observations_used": 9130,
+                        "orbit_class": {
+                          "orbit_class_type": "AMO",
+                          "orbit_class_description": "Near-Earth asteroid orbits similar to that of 1221 Amor",
+                          "orbit_class_range": "1.017 AU < q (perihelion) < 1.3 AU"
+                        },
+                        "orbit_determination_date": "2021-05-24 17:55:05",
+                        "orbit_id": "659",
+                        "orbit_uncertainty": "0",
+                        "orbital_period": "643.1963890927677",
+                        "perihelion_argument": "178.9181319135911"
+                      }
+                    },
+                    {
+                      "absolute_magnitude_h": 15.59,
+                      "close_approach_data": [
+                        {
+                          "close_approach_date": "1909-08-21",
+                          "close_approach_date_full": "1909-Aug-21 15:04",
+                          "epoch_date_close_approach": -1904892960000,
+                          "miss_distance": {},
+                          "orbiting_body": "Juptr",
+                          "relative_velocity": {}
+                        },
+                        {
+                          "close_approach_date": "1956-09-12",
+                          "close_approach_date_full": "1956-Sep-12 20:20",
+                          "epoch_date_close_approach": -419744400000,
+                          "miss_distance": {},
+                          "orbiting_body": "Juptr",
+                          "relative_velocity": {}
+                        }
+                      ],
+                      "designation": "719",
+                      "estimated_diameter": {
+                        "feet": {
+                          "estimated_diameter_max": 14860.2128474689,
+                          "estimated_diameter_min": 6645.6892174112
+                        },
+                        "kilometers": {
+                          "estimated_diameter_max": 4.529392731,
+                          "estimated_diameter_min": 2.0256060086
+                        },
+                        "meters": {
+                          "estimated_diameter_max": 4529.3927309679,
+                          "estimated_diameter_min": 2025.6060086475
+                        },
+                        "miles": {
+                          "estimated_diameter_max": 2.8144332906,
+                          "estimated_diameter_min": 1.2586528312
+                        }
+                      },
+                      "id": "2000719",
+                      "is_potentially_hazardous_asteroid": false,
+                      "is_sentry_object": false,
+                      "links": {
+                        "self": "http://api.nasa.gov/neo/rest/v1/neo/2000719?api_key=*****"
+                      },
+                      "name": "719 Albert (A911 TB)",
+                      "name_limited": "Albert",
+                      "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=2000719",
+                      "neo_reference_id": "2000719",
+                      "orbital_data": {
+                        "aphelion_distance": "4.078287243524005",
+                        "ascending_node_longitude": "183.8602907856791",
+                        "data_arc_in_days": 41869,
+                        "eccentricity": ".54659281141853",
+                        "epoch_osculation": "2461200.5",
+                        "equinox": "J2000",
+                        "first_observation_date": "1911-10-04",
+                        "inclination": "11.57235893021322",
+                        "jupiter_tisserand_invariant": "3.141",
+                        "last_observation_date": "2026-05-22",
+                        "mean_anomaly": "286.6772166822684",
+                        "mean_motion": ".2301713889201717",
+                        "minimum_orbit_intersection": ".201591",
+                        "observations_used": 2147,
+                        "orbit_class": {
+                          "orbit_class_type": "AMO",
+                          "orbit_class_description": "Near-Earth asteroid orbits similar to that of 1221 Amor",
+                          "orbit_class_range": "1.017 AU < q (perihelion) < 1.3 AU"
+                        },
+                        "orbit_determination_date": "2026-05-23 06:17:55",
+                        "orbit_id": "283",
+                        "orbit_uncertainty": "0",
+                        "orbital_period": "1564.051907966961",
+                        "perihelion_argument": "156.1759693786955"
+                      }
+                    }
+                  ],
+                  "page": {
+                    "size": 2,
+                    "number": 0,
+                    "total_elements": 63130,
+                    "total_pages": 31565
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

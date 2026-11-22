@@ -45,6 +45,8 @@ export interface Wso2Api {
 export interface Wso2ApiDetail extends Wso2Api {
   tags?: string[];
   transport?: string[];
+  /** Custom properties shown to developers, e.g. providerKey = "managed". */
+  additionalProperties?: { name: string; value: string }[];
   /** Subscription throttling tiers this API offers. */
   tiers?: { tierName: string; tierPlan?: string }[];
   endpointURLs?: {

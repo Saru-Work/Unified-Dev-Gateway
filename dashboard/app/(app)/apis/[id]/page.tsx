@@ -1,4 +1,4 @@
-import { ArrowUpRight, Plus } from "lucide-react";
+import { ArrowUpRight, KeyRound, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,7 +7,7 @@ import { CopyButton } from "@/app/copy-button";
 import { ApiIcon } from "@/app/ui/api-icon";
 import { PageHeader } from "@/app/ui/page-header";
 import { backend, BackendError, describeError } from "@/lib/backend";
-import { splitDocsLink } from "@/lib/apis";
+import { providerKeyIncluded, splitDocsLink } from "@/lib/apis";
 import { tagLabel } from "@/lib/categories";
 import { requireUser } from "@/lib/session";
 import type { ApiOperation, Application, Wso2ApiDetail } from "@/lib/types";
@@ -73,6 +73,17 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
 
       <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex min-w-0 flex-col gap-6">
+          {providerKeyIncluded(api) && (
+            <div className="flex gap-3 rounded-lg border border-accent/30 bg-accent-soft p-4 text-sm">
+              <KeyRound aria-hidden className="mt-0.5 size-4 shrink-0 text-accent" />
+              <p>
+                <strong className="font-medium">Provider key included.</strong> This API normally
+                needs its own key from the provider; OpenGate adds it for you at the gateway. Call it
+                with your OpenGate access token only, and don&apos;t send a provider key yourself.{" "}
+                <Link href="/docs#provider-keys" className="link">How this works</Link>
+              </p>
+            </div>
+          )}
           <EndpointsSection operations={docs.operations} baseUrl={endpoints[0]?.url} error={docs.error} />
         </div>
 

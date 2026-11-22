@@ -7,10 +7,12 @@ import {
   Gamepad2,
   GraduationCap,
   MapPin,
+  Orbit,
   Palette,
   PawPrint,
   Plug,
   Smile,
+  Telescope,
   Tv,
   UtensilsCrossed,
   type LucideIcon,
@@ -18,6 +20,8 @@ import {
 
 // Most specific first: an API tagged "fun" and "animals" shows as animals.
 const BY_TAG: [string, LucideIcon][] = [
+  ["space", Orbit],
+  ["science", Telescope],
   ["weather", CloudSun],
   ["finance", Coins],
   ["calendar", CalendarDays],

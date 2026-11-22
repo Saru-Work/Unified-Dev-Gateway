@@ -96,8 +96,7 @@ WSO2 data volumes.
 
 ### Sample APIs
 
-A fresh WSO2 has only its PizzaShack sample. To add 18 free public APIs that
-need no key of their own, run:
+A fresh WSO2 has only its PizzaShack sample. To add 19 public APIs, run:
 
 ```bash
 scripts/seed-public-apis.sh   # needs curl and jq; safe to re-run
@@ -123,6 +122,7 @@ scripts/seed-public-apis.sh   # needs curl and jq; safe to re-run
 | DogCEO | `/dogs/1.0.0` | `/breeds/image/random`, `/breed/hound/list` |
 | ChuckNorris | `/chucknorris/1.0.0` | `/jokes/random` |
 | Agify | `/agify/1.0.0` | `/?name=alex` |
+| NasaAsteroids (key included) | `/nasa/neo/1.0.0` | `/neo/browse?size=2`, `/feed?start_date=2026-11-20` |
 
 Each is published with the Bronze, Silver, Gold and Unlimited tiers. The
 gateway takes about 15 seconds to load new APIs, and answers `404` until
@@ -156,6 +156,48 @@ gateway context, the real backend URL and the tags.
 3. Run `scripts/seed-public-apis.sh` to upload it. Changing only the docs
    re-uploads the definition; adding or removing an endpoint also redeploys the
    API to the gateway.
+
+#### APIs that need a provider key
+
+Most valuable APIs need a key from their provider. OpenGate holds that key and
+the gateway adds it to every call, so developers only ever use their OpenGate
+token. Add a `providerKey` block to the file's `x-opengate`:
+
+```json
+"providerKey": {
+  "in": "header",
+  "name": "X-Api-Key",
+  "env": "NASA_API_KEY",
+  "fallback": "DEMO_KEY",
+  "redact": ["api_key"]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `in` | `header` or `query`: where the provider expects the key. Prefer `header`: the gateway's value replaces anything a caller sends, whereas a query key is appended after the caller's own. |
+| `name` | The header or query parameter name. |
+| `env` | The environment variable holding the key. The scripts also read the repo's `.env` (as data, never executed); real environment variables win. Keys never go in the API file. |
+| `fallback` | Optional: a provider's *public* demo key, used when `env` isn't set. |
+| `redact` | Optional: query parameter names whose values the gateway masks in responses (`api_key=*****`, and `"api_key":"*****"` in JSON), for providers that echo the key back. NASA does, in every link. |
+
+What the seed script does with it:
+
+- Stores the key in WSO2 as **API Key endpoint security** (encrypted; WSO2
+  never returns it, not even to the Publisher API).
+- Adds a visible `providerKey: managed` property, which the dashboard shows as
+  **Key included**, and a hidden fingerprint of the key settings, so a changed
+  key is detected and redeployed: change `.env`, re-run the script, done.
+- Installs and attaches the `opengateRedactQueryParams` response policy
+  (`scripts/wso2-policies/`) when `redact` is set.
+
+`record-examples.mjs` calls the provider with the key, masks it in recorded
+examples, and fails if a response contains the key and `redact` doesn't cover it.
+
+Everyone using a key-included API shares the provider's quota. NASA's
+`DEMO_KEY` allows only about 30 calls an hour per IP, so it's for trying things
+out; get a free key at https://api.nasa.gov and set `NASA_API_KEY` in `.env`.
+Check each provider's terms allow access through a gateway like this.
 
 ---
 
