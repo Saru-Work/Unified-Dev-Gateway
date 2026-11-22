@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
 export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
@@ -16,7 +17,12 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
   }
 
   return (
-    <button type="button" className="button-secondary" onClick={copy}>
+    <button type="button" className="button-secondary shrink-0 px-2.5" onClick={copy}>
+      {copied ? (
+        <Check aria-hidden className="size-3.5 text-success" />
+      ) : (
+        <Copy aria-hidden className="size-3.5" />
+      )}
       <span aria-live="polite">{copied ? "Copied" : label}</span>
     </button>
   );

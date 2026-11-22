@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import { AxiosError, AxiosHeaders } from "axios";
 import { startTestServer, type TestServer } from "./helpers";
 
-const WSO2 = { "x-wso2-authorization": "Bearer wso2-token" };
-
 describe("applications", () => {
   let server: TestServer;
   let alice: Record<string, string>;
@@ -30,20 +28,15 @@ describe("applications", () => {
   const create = (
     headers: Record<string, string>,
     body: unknown = { name: "my-app" },
-  ) => server.post("/applications", body, { ...headers, ...WSO2 });
+  ) => server.post("/applications", body, headers);
 
   describe("POST /applications", () => {
     it("requires an OpenGate token", async () => {
-      const res = await server.post("/applications", { name: "x" }, WSO2);
+      const res = await server.post("/applications", { name: "x" });
       assert.equal(res.status, 401);
       assert.equal(server.wso2.calls.length, 0);
     });
 
-    it("requires a WSO2 token", async () => {
-      const res = await server.post("/applications", { name: "x" }, alice);
-      assert.equal(res.status, 401);
-      assert.equal(server.wso2.calls.length, 0);
-    });
 
     it("requires a name", async () => {
       const res = await create(alice, { name: "  " });
@@ -199,15 +192,8 @@ describe("applications", () => {
 
   describe("PATCH /applications/:id", () => {
     const patch = (id: string, body: unknown, headers: Record<string, string>) =>
-      server.patch(`/applications/${id}`, body, { ...headers, ...WSO2 });
+      server.patch(`/applications/${id}`, body, headers);
 
-    it("requires a WSO2 token", async () => {
-      const { body } = await create(alice);
-      server.wso2.calls.length = 0;
-      const res = await server.patch(`/applications/${body.application.id}`, { name: "x" }, alice);
-      assert.equal(res.status, 401);
-      assert.equal(server.wso2.calls.length, 0);
-    });
 
     it("rejects an empty name or an empty change", async () => {
       const { body } = await create(alice);
@@ -306,10 +292,7 @@ describe("applications", () => {
       const { body } = await create(alice);
       server.wso2.calls.length = 0;
 
-      const res = await server.delete(`/applications/${body.application.id}`, {
-        ...alice,
-        ...WSO2,
-      });
+      const res = await server.delete(`/applications/${body.application.id}`, alice);
       assert.equal(res.status, 204);
       assert.deepEqual(
         server.wso2.calls.map((c) => `${c.method} ${c.path} ${c.authorization}`),
@@ -319,22 +302,11 @@ describe("applications", () => {
       assert.equal(after.status, 404);
     });
 
-    it("requires a WSO2 token", async () => {
-      const { body } = await create(alice);
-      server.wso2.calls.length = 0;
-      const res = await server.delete(`/applications/${body.application.id}`, alice);
-      assert.equal(res.status, 401);
-      assert.equal(server.wso2.calls.length, 0);
-      assert.equal(server.applications.records.length, 1);
-    });
 
     it("returns 404 for someone else's app without touching WSO2", async () => {
       const { body } = await create(alice);
       server.wso2.calls.length = 0;
-      const res = await server.delete(`/applications/${body.application.id}`, {
-        ...bob,
-        ...WSO2,
-      });
+      const res = await server.delete(`/applications/${body.application.id}`, bob);
       assert.equal(res.status, 404);
       assert.equal(server.wso2.calls.length, 0);
       assert.equal(server.applications.records.length, 1);
@@ -343,10 +315,7 @@ describe("applications", () => {
     it("still removes the record if WSO2 already deleted the app", async () => {
       const { body } = await create(alice);
       server.wso2.respond = notFoundInWso2;
-      const res = await server.delete(`/applications/${body.application.id}`, {
-        ...alice,
-        ...WSO2,
-      });
+      const res = await server.delete(`/applications/${body.application.id}`, alice);
       assert.equal(res.status, 204);
       assert.equal(server.applications.records.length, 0);
     });
@@ -362,10 +331,7 @@ describe("applications", () => {
           config: { headers: new AxiosHeaders() },
         });
       };
-      const res = await server.delete(`/applications/${body.application.id}`, {
-        ...alice,
-        ...WSO2,
-      });
+      const res = await server.delete(`/applications/${body.application.id}`, alice);
       assert.equal(res.status, 403);
       assert.equal(server.applications.records.length, 1);
     });

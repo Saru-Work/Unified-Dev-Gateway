@@ -1,0 +1,61 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Agify",
+    "version": "1.0.0",
+    "description": "Predicts the age behind a first name. The free tier allows 100 names a day. Docs: https://agify.io/documentation"
+  },
+  "x-opengate": {
+    "context": "/agify",
+    "backend": "https://api.agify.io",
+    "tags": [
+      "demo"
+    ]
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Predict the age for a name",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "A first name.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "alex"
+          },
+          {
+            "name": "country_id",
+            "in": "query",
+            "description": "ISO 3166-1 alpha-2 country code, to use that country's data.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "GB"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prediction, and how many people it's based on",
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 39356,
+                  "name": "alex",
+                  "age": 41,
+                  "country_id": "GB"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Daily limit reached"
+          }
+        }
+      }
+    }
+  }
+}

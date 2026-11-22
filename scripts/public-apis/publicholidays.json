@@ -1,0 +1,225 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "PublicHolidays",
+    "version": "1.0.0",
+    "description": "Public holidays for 100+ countries, from Nager.Date. Docs: https://date.nager.at/Api"
+  },
+  "x-opengate": {
+    "context": "/holidays",
+    "backend": "https://date.nager.at/api/v3",
+    "tags": [
+      "calendar",
+      "reference"
+    ]
+  },
+  "paths": {
+    "/PublicHolidays/{year}/{countryCode}": {
+      "get": {
+        "summary": "A country's public holidays in a year",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "description": "Four-digit year.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 2026
+          },
+          {
+            "name": "countryCode",
+            "in": "path",
+            "required": true,
+            "description": "ISO 3166-1 alpha-2 country code (see /AvailableCountries).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "GB"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Holidays in date order. counties lists the regions a non-global holiday applies to.",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "date": "2026-01-01",
+                    "localName": "New Year's Day",
+                    "name": "New Year's Day",
+                    "countryCode": "GB",
+                    "fixed": false,
+                    "global": false,
+                    "counties": [
+                      "GB-ENG",
+                      "GB-NIR"
+                    ],
+                    "launchYear": null,
+                    "types": [
+                      "Public"
+                    ]
+                  },
+                  {
+                    "date": "2026-01-02",
+                    "localName": "2 January",
+                    "name": "2 January",
+                    "countryCode": "GB",
+                    "fixed": false,
+                    "global": false,
+                    "counties": [
+                      "GB-SCT"
+                    ],
+                    "launchYear": null,
+                    "types": [
+                      "Public"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown country code"
+          }
+        }
+      }
+    },
+    "/NextPublicHolidays/{countryCode}": {
+      "get": {
+        "summary": "A country's public holidays in the next 365 days",
+        "parameters": [
+          {
+            "name": "countryCode",
+            "in": "path",
+            "required": true,
+            "description": "ISO 3166-1 alpha-2 country code.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "US"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upcoming holidays",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "date": "2026-11-26",
+                    "localName": "Thanksgiving Day",
+                    "name": "Thanksgiving Day",
+                    "countryCode": "US",
+                    "fixed": false,
+                    "global": true,
+                    "counties": null,
+                    "launchYear": null,
+                    "types": [
+                      "Public",
+                      "Bank"
+                    ]
+                  },
+                  {
+                    "date": "2026-12-25",
+                    "localName": "Christmas Day",
+                    "name": "Christmas Day",
+                    "countryCode": "US",
+                    "fixed": false,
+                    "global": true,
+                    "counties": null,
+                    "launchYear": null,
+                    "types": [
+                      "Public",
+                      "Bank"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/AvailableCountries": {
+      "get": {
+        "summary": "Countries with holiday data",
+        "responses": {
+          "200": {
+            "description": "Country codes and names",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "countryCode": "AD",
+                    "name": "Andorra"
+                  },
+                  {
+                    "countryCode": "AG",
+                    "name": "Antigua and Barbuda"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/LongWeekend/{year}/{countryCode}": {
+      "get": {
+        "summary": "Long weekends in a year",
+        "description": "Weekends extended by public holidays, and whether a bridge day is needed.",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "description": "Four-digit year.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 2026
+          },
+          {
+            "name": "countryCode",
+            "in": "path",
+            "required": true,
+            "description": "ISO 3166-1 alpha-2 country code.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "DE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Long weekends",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "startDate": "2026-01-01",
+                    "endDate": "2026-01-04",
+                    "dayCount": 4,
+                    "needBridgeDay": true,
+                    "bridgeDays": [
+                      "2026-01-02"
+                    ]
+                  },
+                  {
+                    "startDate": "2026-04-03",
+                    "endDate": "2026-04-06",
+                    "dayCount": 4,
+                    "needBridgeDay": false,
+                    "bridgeDays": []
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

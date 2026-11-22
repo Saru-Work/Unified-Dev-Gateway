@@ -1,0 +1,165 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenMeteo",
+    "version": "1.0.0",
+    "description": "Weather forecasts for any coordinates, up to 16 days ahead. Free for non-commercial use. Docs: https://open-meteo.com/en/docs"
+  },
+  "x-opengate": {
+    "context": "/weather",
+    "backend": "https://api.open-meteo.com/v1",
+    "tags": [
+      "weather"
+    ]
+  },
+  "paths": {
+    "/forecast": {
+      "get": {
+        "summary": "Weather forecast for a location",
+        "description": "Ask for current conditions, hourly and/or daily variables. Daily variables need a timezone.",
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "description": "Latitude in degrees.",
+            "schema": {
+              "type": "number"
+            },
+            "example": 51.5
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "description": "Longitude in degrees.",
+            "schema": {
+              "type": "number"
+            },
+            "example": -0.12
+          },
+          {
+            "name": "current_weather",
+            "in": "query",
+            "description": "Include current temperature, wind and weather code.",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          },
+          {
+            "name": "hourly",
+            "in": "query",
+            "description": "Comma-separated hourly variables, e.g. temperature_2m,precipitation,wind_speed_10m.",
+            "schema": {
+              "type": "string"
+            },
+            "x-test-value": "temperature_2m"
+          },
+          {
+            "name": "daily",
+            "in": "query",
+            "description": "Comma-separated daily variables, e.g. temperature_2m_max,temperature_2m_min,precipitation_sum. Needs timezone.",
+            "schema": {
+              "type": "string"
+            },
+            "x-test-value": "temperature_2m_max"
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "description": "IANA timezone such as Europe/London, or auto to use the location's.",
+            "schema": {
+              "type": "string"
+            },
+            "x-test-value": "auto"
+          },
+          {
+            "name": "forecast_days",
+            "in": "query",
+            "description": "How many days to forecast (1–16).",
+            "schema": {
+              "type": "integer",
+              "default": 7
+            }
+          },
+          {
+            "name": "temperature_unit",
+            "in": "query",
+            "description": "Temperature unit.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "celsius",
+                "fahrenheit"
+              ],
+              "default": "celsius"
+            }
+          },
+          {
+            "name": "wind_speed_unit",
+            "in": "query",
+            "description": "Wind speed unit.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "kmh",
+                "ms",
+                "mph",
+                "kn"
+              ],
+              "default": "kmh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forecast",
+            "content": {
+              "application/json": {
+                "example": {
+                  "latitude": 51.49349,
+                  "longitude": -0.13172913,
+                  "generationtime_ms": 0.11348724365234375,
+                  "utc_offset_seconds": 0,
+                  "timezone": "GMT",
+                  "timezone_abbreviation": "GMT",
+                  "elevation": 1,
+                  "current_weather_units": {
+                    "time": "iso8601",
+                    "interval": "seconds",
+                    "temperature": "°C",
+                    "windspeed": "km/h",
+                    "winddirection": "°",
+                    "is_day": "",
+                    "weathercode": "wmo code"
+                  },
+                  "current_weather": {
+                    "time": "2026-11-22T18:45",
+                    "interval": 900,
+                    "temperature": 8,
+                    "windspeed": 12.2,
+                    "winddirection": 69,
+                    "is_day": 0,
+                    "weathercode": 3
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "reason": "Latitude must be in range of -90 to 90°. Given: 951.5."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

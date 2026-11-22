@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { useActionState } from "react";
 import type { FormState } from "@/lib/types";
 
@@ -65,8 +66,9 @@ export function AuthForm({ action, submitLabel, pendingLabel, confirm, next }: A
         </label>
       )}
 
-      <button type="submit" className="button-primary" disabled={pending}>
+      <button type="submit" className="button-primary py-2.5" disabled={pending}>
         {pending ? pendingLabel : submitLabel}
+        {!pending && <ArrowRight aria-hidden className="size-4" />}
       </button>
     </form>
   );

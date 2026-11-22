@@ -1,0 +1,247 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "ArtInstitute",
+    "version": "1.0.0",
+    "description": "Artworks and artists from the Art Institute of Chicago's collection. Data is CC0. Docs: https://api.artic.edu/docs/"
+  },
+  "x-opengate": {
+    "context": "/art",
+    "backend": "https://api.artic.edu/api/v1",
+    "tags": [
+      "art",
+      "culture"
+    ]
+  },
+  "paths": {
+    "/artworks/search": {
+      "get": {
+        "summary": "Search artworks",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search text.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cats"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "description": "Comma-separated fields to return, e.g. id,title,artist_display,date_display,image_id.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "id,title,artist_display,date_display"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Results per page (up to 100).",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "example": 3
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, from 1.",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching artworks, with paging info",
+            "content": {
+              "application/json": {
+                "example": {
+                  "preference": null,
+                  "pagination": {
+                    "total": 133375,
+                    "limit": 3,
+                    "offset": 0,
+                    "total_pages": 44459,
+                    "current_page": 1
+                  },
+                  "data": [
+                    {
+                      "_score": 92.024445,
+                      "id": 656,
+                      "title": "Lion (One of a Pair, South Pedestal)",
+                      "date_display": "1893",
+                      "artist_display": "Edward Kemeys (American, 1843–1907)\nAmerican Bronze Founding Company (American, founded 1886)\nChicago"
+                    },
+                    {
+                      "_score": 60.327877,
+                      "id": 45259,
+                      "title": "Nude with Cats",
+                      "date_display": "1901",
+                      "artist_display": "Pablo Picasso\nSpanish, active France, 1881-1973"
+                    }
+                  ],
+                  "info": {
+                    "license_text": "The `description` field in this response is licensed under a Creative Commons Attribution 4.0 Generic License (CC-By) and the Terms and Conditions of artic.edu.…",
+                    "license_links": [
+                      "https://creativecommons.org/publicdomain/zero/1.0/",
+                      "https://www.artic.edu/terms"
+                    ],
+                    "version": "1.16"
+                  },
+                  "config": {
+                    "iiif_url": "https://www.artic.edu/iiif/2",
+                    "website_url": "https://www.artic.edu"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/artworks/{id}": {
+      "get": {
+        "summary": "Get an artwork",
+        "description": "Images: https://www.artic.edu/iiif/2/{image_id}/full/843,/0/default.jpg",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Artwork ID.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 27992
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "description": "Comma-separated fields to return; all if left out.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "id,title,artist_display,date_display,medium_display,image_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The artwork",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "id": 27992,
+                    "title": "A Sunday on La Grande Jatte — 1884",
+                    "date_display": "1884–86, border added 1888–89",
+                    "artist_display": "Georges Seurat (French, 1859–1891)",
+                    "medium_display": "Oil on canvas",
+                    "image_id": "2d484387-2509-5e8e-2c43-22f9981972eb"
+                  },
+                  "info": {
+                    "license_text": "The `description` field in this response is licensed under a Creative Commons Attribution 4.0 Generic License (CC-By) and the Terms and Conditions of artic.edu.…",
+                    "license_links": [
+                      "https://creativecommons.org/publicdomain/zero/1.0/",
+                      "https://www.artic.edu/terms"
+                    ],
+                    "version": "1.16"
+                  },
+                  "config": {
+                    "iiif_url": "https://www.artic.edu/iiif/2",
+                    "website_url": "https://www.artic.edu"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such artwork"
+          }
+        }
+      }
+    },
+    "/artists/search": {
+      "get": {
+        "summary": "Search artists",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search text.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "monet"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Results per page (up to 100).",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "example": 3
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching artists",
+            "content": {
+              "application/json": {
+                "example": {
+                  "preference": null,
+                  "pagination": {
+                    "total": 14974,
+                    "limit": 3,
+                    "offset": 0,
+                    "total_pages": 4992,
+                    "current_page": 1
+                  },
+                  "data": [
+                    {
+                      "_score": 28.622473,
+                      "id": 35809,
+                      "api_model": "agents",
+                      "api_link": "https://api.artic.edu/api/v1/agents/35809",
+                      "title": "Claude Monet",
+                      "timestamp": "2026-11-22T03:02:22-06:00"
+                    },
+                    {
+                      "_score": 5.1776853,
+                      "id": 40810,
+                      "api_model": "agents",
+                      "api_link": "https://api.artic.edu/api/v1/agents/40810",
+                      "title": "Georges Seurat",
+                      "timestamp": "2026-11-22T03:02:25-06:00"
+                    }
+                  ],
+                  "info": {
+                    "license_text": "The data in this response is licensed under a Creative Commons Zero (CC0) 1.0 designation and the Terms and Conditions of artic.edu.",
+                    "license_links": [
+                      "https://creativecommons.org/publicdomain/zero/1.0/",
+                      "https://www.artic.edu/terms"
+                    ],
+                    "version": "1.16"
+                  },
+                  "config": {
+                    "iiif_url": "https://www.artic.edu/iiif/2",
+                    "website_url": "https://www.artic.edu"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

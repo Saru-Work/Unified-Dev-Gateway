@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useActionState } from "react";
 import { subscribe } from "@/app/actions/applications";
 
@@ -19,8 +20,8 @@ export function SubscribeForm({ apiId, applications, tiers }: SubscribeFormProps
           {state.error}
         </p>
       )}
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex min-w-48 flex-1 flex-col gap-1">
+      <div className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1">
           <span className="field-label">Application</span>
           <select
             className="field"
@@ -35,7 +36,7 @@ export function SubscribeForm({ apiId, applications, tiers }: SubscribeFormProps
             ))}
           </select>
         </label>
-        <label className="flex min-w-36 flex-col gap-1">
+        <label className="flex flex-col gap-1">
           <span className="field-label">Tier</span>
           <select
             className="field"
@@ -51,6 +52,7 @@ export function SubscribeForm({ apiId, applications, tiers }: SubscribeFormProps
           </select>
         </label>
         <button type="submit" className="button-primary" disabled={pending}>
+          <Plus aria-hidden className="size-4" />
           {pending ? "Subscribing…" : "Subscribe"}
         </button>
       </div>

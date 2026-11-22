@@ -1,21 +1,19 @@
+import { Boxes, Layers } from "lucide-react";
 import Link from "next/link";
 import { backend, describeError } from "@/lib/backend";
-import { getWso2Token, requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import type { Subscription } from "@/lib/types";
 import { UnsubscribeButton } from "./unsubscribe-button";
 
 export async function SubscriptionsSection({ applicationId }: { applicationId: string }) {
   const { token } = await requireUser();
-  const wso2Token = await getWso2Token();
-  // The Keys section above already explains how to add a WSO2 token.
-  if (!wso2Token) return null;
 
   let subscriptions: Subscription[] = [];
   let error: string | undefined;
   try {
     ({ subscriptions } = await backend<{ subscriptions: Subscription[] }>(
       `/applications/${encodeURIComponent(applicationId)}/subscriptions`,
-      { token, wso2Token },
+      { token },
     ));
   } catch (err) {
     error = describeError(err);
@@ -24,7 +22,9 @@ export async function SubscriptionsSection({ applicationId }: { applicationId: s
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="text-lg font-semibold">Subscriptions</h2>
+        <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+          <Layers aria-hidden className="size-5 text-accent" /> Subscriptions
+        </h2>
         <p className="text-sm text-muted">
           APIs this application&apos;s keys can call.
         </p>
@@ -33,12 +33,11 @@ export async function SubscriptionsSection({ applicationId }: { applicationId: s
       {error ? (
         <p className="notice-error">Couldn&apos;t load subscriptions: {error}</p>
       ) : subscriptions.length === 0 ? (
-        <div className="card text-sm">
-          Not subscribed to any APIs yet.{" "}
-          <Link href="/apis" className="link">
-            Browse APIs
-          </Link>{" "}
-          to subscribe.
+        <div className="card flex flex-wrap items-center justify-between gap-3 border-dashed text-sm">
+          <span className="text-muted">Not subscribed to any APIs yet.</span>
+          <Link href="/apis" className="button-secondary">
+            <Boxes aria-hidden className="size-4" /> Browse the catalog
+          </Link>
         </div>
       ) : (
         <ul className="card flex flex-col divide-y divide-border p-0">

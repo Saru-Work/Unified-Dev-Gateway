@@ -1,0 +1,206 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "CatFacts",
+    "version": "1.0.0",
+    "description": "Random cat facts and a list of cat breeds. Docs: https://catfact.ninja/"
+  },
+  "x-opengate": {
+    "context": "/catfacts",
+    "backend": "https://catfact.ninja",
+    "tags": [
+      "fun",
+      "animals"
+    ]
+  },
+  "paths": {
+    "/fact": {
+      "get": {
+        "summary": "A random cat fact",
+        "parameters": [
+          {
+            "name": "max_length",
+            "in": "query",
+            "description": "Longest fact to return, in characters.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 100
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A fact",
+            "content": {
+              "application/json": {
+                "example": {
+                  "fact": "Cats' hearing is much more sensitive than humans and dogs.",
+                  "length": 58
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/facts": {
+      "get": {
+        "summary": "A page of cat facts",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Facts per page.",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "example": 5
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, from 1.",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "max_length",
+            "in": "query",
+            "description": "Longest fact to return, in characters.",
+            "schema": {
+              "type": "integer"
+            },
+            "x-test-value": 80
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Facts, with pagination links",
+            "content": {
+              "application/json": {
+                "example": {
+                  "current_page": 1,
+                  "data": [
+                    {
+                      "fact": "Unlike dogs, cats do not have a sweet tooth. Scientists believe this is due to a mutation in a key taste receptor.",
+                      "length": 114
+                    },
+                    {
+                      "fact": "When a cat chases its prey, it keeps its head level. Dogs and humans bob their heads up and down.",
+                      "length": 97
+                    }
+                  ],
+                  "first_page_url": "https://catfact.ninja/facts?page=1",
+                  "from": 1,
+                  "last_page": 67,
+                  "last_page_url": "https://catfact.ninja/facts?page=67",
+                  "links": [
+                    {
+                      "url": null,
+                      "label": "Previous",
+                      "page": null,
+                      "active": false
+                    },
+                    {
+                      "url": "https://catfact.ninja/facts?page=1",
+                      "label": "1",
+                      "page": 1,
+                      "active": true
+                    }
+                  ],
+                  "next_page_url": "https://catfact.ninja/facts?page=2",
+                  "path": "https://catfact.ninja/facts",
+                  "per_page": 5,
+                  "prev_page_url": null,
+                  "to": 5,
+                  "total": 332
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/breeds": {
+      "get": {
+        "summary": "A page of cat breeds",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Breeds per page.",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            },
+            "example": 5
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, from 1.",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Breeds, with pagination links",
+            "content": {
+              "application/json": {
+                "example": {
+                  "current_page": 1,
+                  "data": [
+                    {
+                      "breed": "Abyssinian",
+                      "country": "Ethiopia",
+                      "origin": "Natural/Standard",
+                      "coat": "Short",
+                      "pattern": "Ticked"
+                    },
+                    {
+                      "breed": "Aegean",
+                      "country": "Greece",
+                      "origin": "Natural/Standard",
+                      "coat": "Semi-long",
+                      "pattern": "Bi- or tri-colored"
+                    }
+                  ],
+                  "first_page_url": "https://catfact.ninja/breeds?page=1",
+                  "from": 1,
+                  "last_page": 20,
+                  "last_page_url": "https://catfact.ninja/breeds?page=20",
+                  "links": [
+                    {
+                      "url": null,
+                      "label": "Previous",
+                      "page": null,
+                      "active": false
+                    },
+                    {
+                      "url": "https://catfact.ninja/breeds?page=1",
+                      "label": "1",
+                      "page": 1,
+                      "active": true
+                    }
+                  ],
+                  "next_page_url": "https://catfact.ninja/breeds?page=2",
+                  "path": "https://catfact.ninja/breeds",
+                  "per_page": 5,
+                  "prev_page_url": null,
+                  "to": 5,
+                  "total": 98
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

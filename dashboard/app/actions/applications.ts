@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { backend, BackendError, describeError } from "@/lib/backend";
-import { getWso2Token, requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import type {
   Application,
   ApplicationKey,
@@ -12,13 +12,10 @@ import type {
   KeyType,
 } from "@/lib/types";
 
-const NO_WSO2_TOKEN =
-  "Save a WSO2 access token in Settings before changing applications.";
-
 /** Explains WSO2 auth failures in terms the user can act on. */
 function applicationError(err: unknown): string {
   if (err instanceof BackendError && (err.status === 401 || err.status === 403)) {
-    return `WSO2 rejected the request (${err.message}). Your WSO2 token may have expired; save a new one in Settings.`;
+    return `WSO2 rejected the request (${err.message}). Ask an administrator to check OpenGate's WSO2 account.`;
   }
   return describeError(err);
 }
@@ -35,8 +32,6 @@ export async function createApplication(
 
   if (!name) return { error: "Give the application a name.", fields };
 
-  const wso2Token = await getWso2Token();
-  if (!wso2Token) return { error: NO_WSO2_TOKEN, fields };
 
   let application: Application;
   try {
@@ -44,7 +39,6 @@ export async function createApplication(
       method: "POST",
       body: { name, description, ...(throttlingPolicy && { throttlingPolicy }) },
       token,
-      wso2Token,
     }));
   } catch (err) {
     return { error: applicationError(err), fields };
@@ -67,15 +61,12 @@ export async function updateApplication(
 
   if (!name) return { error: "The application needs a name.", fields };
 
-  const wso2Token = await getWso2Token();
-  if (!wso2Token) return { error: NO_WSO2_TOKEN, fields };
 
   try {
     await backend(`/applications/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: { name, description, ...(throttlingPolicy && { throttlingPolicy }) },
       token,
-      wso2Token,
     });
   } catch (err) {
     return { error: applicationError(err), fields };
@@ -87,14 +78,10 @@ export async function updateApplication(
 
 export async function deleteApplication(id: string): Promise<FormState> {
   const { token } = await requireUser();
-  const wso2Token = await getWso2Token();
-  if (!wso2Token) return { error: NO_WSO2_TOKEN };
-
   try {
     await backend(`/applications/${encodeURIComponent(id)}`, {
       method: "DELETE",
       token,
-      wso2Token,
     });
   } catch (err) {
     // Already gone (or never ours): the outcome the user wanted anyway.
@@ -112,13 +99,10 @@ export async function generateKeys(
   keyType: KeyType,
 ): Promise<GenerateKeyState> {
   const { token } = await requireUser();
-  const wso2Token = await getWso2Token();
-  if (!wso2Token) return { error: NO_WSO2_TOKEN };
-
   try {
     const { key } = await backend<{ key: ApplicationKey }>(
       `/applications/${encodeURIComponent(id)}/keys`,
-      { method: "POST", body: { keyType }, token, wso2Token },
+      { method: "POST", body: { keyType }, token },
     );
     // Deliberately no revalidatePath: re-rendering would replace this
     // response, and the secret in it can't be fetched again.
@@ -136,13 +120,10 @@ export async function unsubscribe(
   subscriptionId: string,
 ): Promise<FormState> {
   const { token } = await requireUser();
-  const wso2Token = await getWso2Token();
-  if (!wso2Token) return { error: NO_WSO2_TOKEN };
-
   try {
     await backend(
       `/applications/${encodeURIComponent(applicationId)}/subscriptions/${encodeURIComponent(subscriptionId)}`,
-      { method: "DELETE", token, wso2Token },
+      { method: "DELETE", token },
     );
   } catch (err) {
     return { error: applicationError(err) };
@@ -165,15 +146,12 @@ export async function subscribe(
   if (!applicationId) return { error: "Choose an application.", fields };
   if (!throttlingPolicy) return { error: "Choose a tier.", fields };
 
-  const wso2Token = await getWso2Token();
-  if (!wso2Token) return { error: NO_WSO2_TOKEN, fields };
 
   try {
     await backend(`/applications/${encodeURIComponent(applicationId)}/subscriptions`, {
       method: "POST",
       body: { apiId, throttlingPolicy },
       token,
-      wso2Token,
     });
   } catch (err) {
     if (err instanceof BackendError && err.status === 409) {
@@ -191,17 +169,70 @@ export async function regenerateSecret(
   keyMappingId: string,
 ): Promise<{ error?: string; consumerSecret?: string }> {
   const { token } = await requireUser();
-  const wso2Token = await getWso2Token();
-  if (!wso2Token) return { error: NO_WSO2_TOKEN };
-
   try {
     const { key } = await backend<{ key: { consumerSecret: string } }>(
       `/applications/${encodeURIComponent(id)}/keys/${encodeURIComponent(keyMappingId)}/regenerate-secret`,
-      { method: "POST", token, wso2Token },
+      { method: "POST", token },
     );
     // As with generateKeys: no revalidation, so the one-time secret stays visible.
     return { consumerSecret: key.consumerSecret };
   } catch (err) {
     return { error: applicationError(err) };
   }
+}
+
+export interface AccessTokenState {
+  error?: string;
+  accessToken?: string;
+  expiresIn?: number;
+}
+
+/**
+ * Swaps an app's consumer key and secret for an access token, so the user
+ * doesn't have to call WSO2's token endpoint. The secret comes from the form,
+ * since OpenGate never stores it.
+ */
+export async function getAccessToken(
+  id: string,
+  keyMappingId: string,
+  _prev: AccessTokenState,
+  formData: FormData,
+): Promise<AccessTokenState> {
+  const { token } = await requireUser();
+  const consumerSecret = String(formData.get("consumerSecret") ?? "").trim();
+  if (!consumerSecret) return { error: "Enter the consumer secret for these keys." };
+
+  try {
+    const { token: accessToken } = await backend<{
+      token: { accessToken: string; expiresIn: number };
+    }>(
+      `/applications/${encodeURIComponent(id)}/keys/${encodeURIComponent(keyMappingId)}/token`,
+      { method: "POST", body: { consumerSecret }, token },
+    );
+    // No revalidation: the token lives only in this response.
+    return { accessToken: accessToken.accessToken, expiresIn: accessToken.expiresIn };
+  } catch (err) {
+    if (err instanceof BackendError && err.status === 400) {
+      return { error: "That consumer secret doesn't match these keys." };
+    }
+    return { error: applicationError(err) };
+  }
+}
+
+/** Deletes one environment's keys so the user can generate new ones. */
+export async function deleteKeys(id: string, keyMappingId: string): Promise<FormState> {
+  const { token } = await requireUser();
+  try {
+    await backend(
+      `/applications/${encodeURIComponent(id)}/keys/${encodeURIComponent(keyMappingId)}`,
+      { method: "DELETE", token },
+    );
+  } catch (err) {
+    // Already gone: the outcome the user wanted anyway.
+    if (!(err instanceof BackendError && err.status === 404)) {
+      return { error: applicationError(err) };
+    }
+  }
+  revalidatePath(`/applications/${id}`);
+  return { success: "Keys deleted." };
 }

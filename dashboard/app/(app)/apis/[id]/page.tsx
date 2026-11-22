@@ -1,11 +1,17 @@
+import { AppWindow, Globe, Info, Layers, Plus, Tag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { backend, BackendError } from "@/lib/backend";
+import { CopyButton } from "@/app/copy-button";
+import { ApiIcon } from "@/app/ui/api-icon";
+import { PageHeader } from "@/app/ui/page-header";
+import { backend, BackendError, describeError } from "@/lib/backend";
+import { splitDocsLink } from "@/lib/apis";
+import { tagLabel } from "@/lib/categories";
 import { requireUser } from "@/lib/session";
-import type { Application, Wso2ApiDetail } from "@/lib/types";
-import { Wso2TokenNotice } from "../../wso2-token-notice";
+import type { ApiOperation, Application, Wso2ApiDetail } from "@/lib/types";
+import { EndpointsSection } from "./endpoints-section";
 import { SubscribeForm } from "./subscribe-form";
 
 const getApi = cache(async (id: string): Promise<Wso2ApiDetail> => {
@@ -26,9 +32,14 @@ export async function generateMetadata({ params }: PageProps<"/apis/[id]">): Pro
 
 export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
   const { token } = await requireUser();
-  const [api, { applications }] = await Promise.all([
-    getApi((await params).id),
+  const { id } = await params;
+  const [api, { applications }, docs] = await Promise.all([
+    getApi(id),
     backend<{ applications: Application[] }>("/applications", { token }),
+    backend<{ operations: ApiOperation[] }>(`/apis/${encodeURIComponent(id)}/operations`).then(
+      ({ operations }) => ({ operations, error: undefined }),
+      (err: unknown) => ({ operations: [], error: describeError(err) }),
+    ),
   ]);
   const tiers = (api.tiers ?? []).map((t) => t.tierName);
   const endpoints = (api.endpointURLs ?? []).flatMap((env) =>
@@ -36,100 +47,132 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
       .filter((url): url is string => Boolean(url))
       .map((url) => ({ env: env.environmentDisplayName ?? env.environmentName, url })),
   );
+  const { text, docs: docsUrl } = splitDocsLink(api.description);
 
   return (
     <>
-      <div>
-        <Link href="/apis" className="text-sm text-muted hover:text-foreground">
-          ← APIs
-        </Link>
-        <div className="mt-1 flex flex-wrap items-baseline gap-3">
-          <h1 className="text-2xl font-semibold">{api.name}</h1>
-          {api.version && <span className="text-muted">v{api.version}</span>}
-          {api.lifeCycleStatus && (
-            <span className="rounded-full bg-surface px-2 py-0.5 text-xs">
-              {api.lifeCycleStatus}
-            </span>
-          )}
-        </div>
-        {api.description && <p className="mt-2 max-w-3xl text-muted">{api.description}</p>}
-      </div>
+      <PageHeader
+        back={{ href: "/apis", label: "API catalog" }}
+        media={<ApiIcon tags={api.tags} size="lg" />}
+        title={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {api.name}
+            {api.version && <span className="badge">v{api.version}</span>}
+            {api.lifeCycleStatus && <span className="badge-success">{api.lifeCycleStatus.toLowerCase()}</span>}
+          </span>
+        }
+        description={text || undefined}
+        actions={
+          docsUrl && (
+            <a href={docsUrl} target="_blank" rel="noreferrer" className="button-secondary">
+              <Globe aria-hidden className="size-4" /> Provider docs
+            </a>
+          )
+        }
+      />
 
-      <dl className="card grid gap-x-6 gap-y-3 sm:grid-cols-[max-content_1fr]">
-        {api.context && (
-          <>
-            <dt className="text-sm font-medium text-muted">Context</dt>
-            <dd><code className="font-mono text-sm">{api.context}</code></dd>
-          </>
-        )}
-        {api.provider && (
-          <>
-            <dt className="text-sm font-medium text-muted">Provider</dt>
-            <dd>{api.provider}</dd>
-          </>
-        )}
-        {api.tiers && api.tiers.length > 0 && (
-          <>
-            <dt className="text-sm font-medium text-muted">Subscription tiers</dt>
-            <dd>{api.tiers.map((t) => t.tierName).join(", ")}</dd>
-          </>
-        )}
-        {api.tags && api.tags.length > 0 && (
-          <>
-            <dt className="text-sm font-medium text-muted">Tags</dt>
-            <dd className="flex flex-wrap gap-1">
-              {api.tags.map((tag) => (
-                <span key={tag} className="rounded-full bg-surface px-2 py-0.5 text-xs">
-                  {tag}
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
+          <EndpointsSection operations={docs.operations} baseUrl={endpoints[0]?.url} error={docs.error} />
+        </div>
+
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
+          <section className="card flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Plus aria-hidden className="size-4.5 text-accent" />
+              <h2 className="font-semibold">Subscribe</h2>
+            </div>
+            {applications.length === 0 ? (
+              <div className="flex flex-col items-start gap-3">
+                <p className="text-sm text-muted">You need an application to subscribe with.</p>
+                <Link href="/applications/new" className="button-primary">
+                  <AppWindow aria-hidden className="size-4" /> Create an application
+                </Link>
+              </div>
+            ) : tiers.length === 0 ? (
+              <p className="text-sm text-muted">This API doesn&apos;t offer any subscription tiers.</p>
+            ) : (
+              <>
+                <p className="text-sm text-muted">Let one of your applications call this API.</p>
+                <SubscribeForm
+                  apiId={api.id}
+                  applications={applications.map(({ id, name }) => ({ id, name }))}
+                  tiers={tiers}
+                />
+              </>
+            )}
+          </section>
+
+          <section className="card flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Info aria-hidden className="size-4.5 text-accent" />
+              <h2 className="font-semibold">Details</h2>
+            </div>
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+              {api.context && (
+                <>
+                  <dt className="text-muted">Context</dt>
+                  <dd><code className="font-mono">{api.context}</code></dd>
+                </>
+              )}
+              {api.provider && (
+                <>
+                  <dt className="text-muted">Provider</dt>
+                  <dd>{api.provider}</dd>
+                </>
+              )}
+              <dt className="text-muted">Endpoints</dt>
+              <dd>{docs.operations.length}</dd>
+            </dl>
+            {tiers.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+                  <Layers aria-hidden className="size-3.5" /> Tiers
                 </span>
-              ))}
-            </dd>
-          </>
-        )}
-      </dl>
+                <div className="flex flex-wrap gap-1.5">
+                  {tiers.map((t) => <span key={t} className="badge">{t}</span>)}
+                </div>
+              </div>
+            )}
+            {api.tags && api.tags.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+                  <Tag aria-hidden className="size-3.5" /> Tags
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {api.tags.map((t) => (
+                    <Link key={t} href={`/apis?tag=${encodeURIComponent(t)}`} className="badge-accent hover:underline">
+                      {tagLabel(t)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
 
-      <section className="card flex flex-col gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Subscribe</h2>
-          <p className="text-sm text-muted">
-            Let one of your applications call this API.
-          </p>
-        </div>
-        <Wso2TokenNotice action="subscribe" />
-        {applications.length === 0 ? (
-          <p className="text-sm">
-            You don&apos;t have any applications yet.{" "}
-            <Link href="/applications/new" className="link">
-              Create one
-            </Link>{" "}
-            first.
-          </p>
-        ) : tiers.length === 0 ? (
-          <p className="text-sm text-muted">
-            This API doesn&apos;t offer any subscription tiers.
-          </p>
-        ) : (
-          <SubscribeForm
-            apiId={api.id}
-            applications={applications.map(({ id, name }) => ({ id, name }))}
-            tiers={tiers}
-          />
-        )}
-      </section>
-
-      {endpoints.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold">Gateway endpoints</h2>
-          <ul className="card flex flex-col gap-2">
-            {endpoints.map(({ env, url }) => (
-              <li key={url} className="flex flex-wrap gap-x-3">
-                {env && <span className="text-sm text-muted">{env}</span>}
-                <code className="break-all font-mono text-sm">{url}</code>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          {endpoints.length > 0 && (
+            <section className="card flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Globe aria-hidden className="size-4.5 text-accent" />
+                <h2 className="font-semibold">Gateway URLs</h2>
+              </div>
+              <ul className="flex flex-col gap-3">
+                {endpoints.map(({ env, url }) => (
+                  <li key={url} className="flex flex-col gap-1">
+                    {env && <span className="text-xs text-muted">{env} · {url.split(":")[0].toUpperCase()}</span>}
+                    <div className="flex items-center gap-2">
+                      <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-2 py-1 font-mono text-xs" title={url}>
+                        {url}
+                      </code>
+                      <CopyButton value={url} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </aside>
+      </div>
     </>
   );
 }

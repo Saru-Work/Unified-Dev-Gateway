@@ -1,14 +1,22 @@
 "use client";
 
+import { FlaskConical, ShieldCheck } from "lucide-react";
 import { useActionState, useState } from "react";
-import { generateKeys, regenerateSecret } from "@/app/actions/applications";
+import { deleteKeys, generateKeys, regenerateSecret } from "@/app/actions/applications";
 import { CopyButton } from "@/app/copy-button";
+import { AccessToken } from "./access-token";
 import type { ApplicationKey, GenerateKeyState, KeyType } from "@/lib/types";
 
-const LABELS: Record<KeyType, string> = {
-  PRODUCTION: "Production",
-  SANDBOX: "Sandbox",
+const LABELS: Record<KeyType, { label: string; hint: string; icon: typeof ShieldCheck; tone: string }> = {
+  PRODUCTION: { label: "Production", hint: "Calls the live backend", icon: ShieldCheck, tone: "tone-emerald" },
+  SANDBOX: { label: "Sandbox", hint: "Calls the sandbox backend, if the API has one", icon: FlaskConical, tone: "tone-amber" },
 };
+
+/** Outcome of deleting keys: which ones went, or why it failed. */
+interface DeleteState {
+  error?: string;
+  keyMappingId?: string;
+}
 
 interface KeyPanelProps {
   applicationId: string;
@@ -41,16 +49,40 @@ export function KeyPanel({ applicationId, keyType, existing }: KeyPanelProps) {
     regenerateSecret.bind(null, applicationId, existing?.keyMappingId ?? ""),
     {},
   );
-  const generated = state.key ?? existing;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleted, deleteAction, deleting] = useActionState<DeleteState, FormData>(
+    async (_prev, formData) => {
+      const keyMappingId = String(formData.get("keyMappingId") ?? "");
+      const result = await deleteKeys(applicationId, keyMappingId);
+      return result.error ? { error: result.error } : { keyMappingId };
+    },
+    {},
+  );
+  const latest = state.key ?? existing;
+  // Hide keys deleted in this session until the page re-renders without them.
+  const generated =
+    latest && latest.keyMappingId !== deleted.keyMappingId ? latest : undefined;
   const key = generated && {
     ...generated,
-    consumerSecret: regenerated.consumerSecret ?? generated.consumerSecret,
+    // A regenerated secret belongs to the keys loaded with the page, not newer ones.
+    consumerSecret:
+      (!state.key && regenerated.consumerSecret) || generated.consumerSecret,
   };
-  const error = state.error ?? regenerated.error;
+  const error = state.error ?? regenerated.error ?? deleted.error;
+  const EnvIcon = LABELS[keyType].icon;
 
   return (
     <div className="card flex flex-col gap-3">
-      <h3 className="font-semibold">{LABELS[keyType]}</h3>
+      <div className="flex items-center gap-3">
+        <span className={`icon-tile ${LABELS[keyType].tone} size-9`}>
+          <EnvIcon aria-hidden className="size-4" />
+        </span>
+        <div className="flex flex-col">
+          <h3 className="font-semibold">{LABELS[keyType].label}</h3>
+          <span className="text-xs text-muted">{LABELS[keyType].hint}</span>
+        </div>
+        {key && <span className="badge-success ml-auto">Active</span>}
+      </div>
 
       {error && (
         <p role="alert" className="notice-error">
@@ -109,6 +141,54 @@ export function KeyPanel({ applicationId, keyType, existing }: KeyPanelProps) {
             <p className="text-xs text-muted">
               Grant types: {key.supportedGrantTypes.join(", ")}
             </p>
+          )}
+          {key.keyMappingId && (
+            <AccessToken
+              key={key.keyMappingId}
+              applicationId={applicationId}
+              keyMappingId={key.keyMappingId}
+              consumerSecret={key.consumerSecret}
+            />
+          )}
+          {key.keyMappingId && (
+            <div className="flex flex-col items-start gap-2 border-t border-border pt-3">
+              {confirmingDelete ? (
+                <form
+                  action={deleteAction}
+                  onSubmit={() => setConfirmingDelete(false)}
+                  className="flex flex-wrap items-center gap-2"
+                >
+                  <input type="hidden" name="keyMappingId" value={key.keyMappingId} />
+                  <span className="text-sm">
+                    The secret and every access token from these keys stop working at once.
+                  </span>
+                  <button type="submit" className="button-danger">
+                    Delete keys
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setConfirmingDelete(false)}
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <p className="text-xs text-muted">
+                    Lost the secret? Delete these keys and generate new ones.
+                  </p>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={deleting}
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    {deleting ? "Deleting…" : "Delete keys…"}
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </>
       ) : (

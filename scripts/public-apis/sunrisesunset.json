@@ -1,0 +1,103 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "SunriseSunset",
+    "version": "1.0.0",
+    "description": "Sunrise, sunset and twilight times for any place and date, from sunrise-sunset.org (please credit them). Docs: https://sunrise-sunset.org/api"
+  },
+  "x-opengate": {
+    "context": "/sun",
+    "backend": "https://api.sunrise-sunset.org",
+    "tags": [
+      "geo",
+      "reference"
+    ]
+  },
+  "paths": {
+    "/json": {
+      "get": {
+        "summary": "Sun times for a location",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "description": "Latitude in degrees.",
+            "schema": {
+              "type": "number"
+            },
+            "example": 51.5
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": true,
+            "description": "Longitude in degrees.",
+            "schema": {
+              "type": "number"
+            },
+            "example": -0.12
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "description": "YYYY-MM-DD, or today/tomorrow.",
+            "schema": {
+              "type": "string",
+              "default": "today"
+            },
+            "example": "2026-06-21"
+          },
+          {
+            "name": "formatted",
+            "in": "query",
+            "description": "0 for ISO 8601 times and day_length in seconds; 1 for 12-hour clock strings.",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ],
+              "default": 1
+            },
+            "example": 0
+          },
+          {
+            "name": "tzid",
+            "in": "query",
+            "description": "IANA timezone for the times; UTC if left out.",
+            "schema": {
+              "type": "string"
+            },
+            "x-test-value": "Europe/London"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sun times. status is OK, or INVALID_REQUEST / INVALID_DATE for bad input.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "results": {
+                    "sunrise": "2026-06-21T03:43:05+00:00",
+                    "sunset": "2026-06-21T20:21:31+00:00",
+                    "solar_noon": "2026-06-21T12:02:18+00:00",
+                    "day_length": 59906,
+                    "civil_twilight_begin": "2026-06-21T02:55:26+00:00",
+                    "civil_twilight_end": "2026-06-21T21:09:10+00:00",
+                    "nautical_twilight_begin": "2026-06-21T01:40:51+00:00",
+                    "nautical_twilight_end": "2026-06-21T22:23:45+00:00",
+                    "astronomical_twilight_begin": "1970-01-01T00:00:01+00:00",
+                    "astronomical_twilight_end": "1970-01-01T00:00:01+00:00"
+                  },
+                  "status": "OK",
+                  "tzid": "UTC"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

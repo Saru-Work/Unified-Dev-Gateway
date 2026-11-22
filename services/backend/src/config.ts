@@ -12,6 +12,12 @@ export interface AppConfig {
   jwtSecret: string;
   wso2BaseUrl: string;
   wso2AllowSelfSigned: boolean;
+  /** WSO2 account OpenGate acts as; every application is created under it. */
+  wso2Username: string;
+  wso2Password: string;
+  /** Optional pre-registered OAuth client; otherwise one is registered on first use. */
+  wso2ClientId?: string;
+  wso2ClientSecret?: string;
 }
 
 export function loadConfig(): AppConfig {
@@ -23,5 +29,19 @@ export function loadConfig(): AppConfig {
       process.env.WSO2_BASE_URL ?? "https://localhost:9443/api/am/devportal/v3",
     // WSO2 ships with a self-signed cert; only trust it when explicitly allowed.
     wso2AllowSelfSigned: process.env.WSO2_ALLOW_SELF_SIGNED === "true",
+    wso2Username: required("WSO2_USERNAME"),
+    wso2Password: required("WSO2_PASSWORD"),
+    ...optionalClient(),
   };
+}
+
+/** WSO2_CLIENT_ID and WSO2_CLIENT_SECRET go together: both or neither. */
+function optionalClient(): { wso2ClientId?: string; wso2ClientSecret?: string } {
+  const id = process.env.WSO2_CLIENT_ID;
+  const secret = process.env.WSO2_CLIENT_SECRET;
+  if (!id && !secret) return {};
+  if (!id || !secret) {
+    throw new Error("Set both WSO2_CLIENT_ID and WSO2_CLIENT_SECRET, or neither");
+  }
+  return { wso2ClientId: id, wso2ClientSecret: secret };
 }

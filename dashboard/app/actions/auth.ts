@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { backend, BackendError, describeError } from "@/lib/backend";
-import { cookieDefaults, requireUser, SESSION_COOKIE, WSO2_COOKIE } from "@/lib/session";
+import { cookieDefaults, requireUser, SESSION_COOKIE } from "@/lib/session";
 import type { FormState, LoginResponse } from "@/lib/types";
 
 function readCredentials(formData: FormData) {
@@ -15,7 +15,7 @@ function readCredentials(formData: FormData) {
 /** Only allow same-site relative paths, so `next` can't redirect off-site. */
 function safeNext(value: FormDataEntryValue | null): string {
   const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/applications";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 }
 
 async function startSession(email: string, password: string) {
@@ -71,7 +71,7 @@ export async function register(_prev: FormState, formData: FormData): Promise<Fo
     return { error, fields: { email } };
   }
 
-  redirect("/applications");
+  redirect("/dashboard");
 }
 
 export async function changePassword(
@@ -107,8 +107,6 @@ export async function changePassword(
 }
 
 export async function logout() {
-  const jar = await cookies();
-  jar.delete(SESSION_COOKIE);
-  jar.delete(WSO2_COOKIE);
+  (await cookies()).delete(SESSION_COOKIE);
   redirect("/login");
 }

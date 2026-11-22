@@ -1,0 +1,141 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "PostalCodes",
+    "version": "1.0.0",
+    "description": "Places and coordinates for postal codes in 60+ countries, from Zippopotam.us. Docs: https://www.zippopotam.us"
+  },
+  "x-opengate": {
+    "context": "/postcodes",
+    "backend": "https://api.zippopotam.us",
+    "tags": [
+      "geo",
+      "reference"
+    ]
+  },
+  "paths": {
+    "/{country}/{postcode}": {
+      "get": {
+        "summary": "Places for a postal code",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "path",
+            "required": true,
+            "description": "ISO 3166-1 alpha-2 country code, lower case.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "us"
+          },
+          {
+            "name": "postcode",
+            "in": "path",
+            "required": true,
+            "description": "Postal code. For gb, the outward code only (e.g. SW1A).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "90210"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The places with that postal code",
+            "content": {
+              "application/json": {
+                "example": {
+                  "country": "United States",
+                  "country abbreviation": "US",
+                  "post code": "90210",
+                  "places": [
+                    {
+                      "place name": "Beverly Hills",
+                      "longitude": "-118.4065",
+                      "latitude": "34.0901",
+                      "state": "California",
+                      "state abbreviation": "CA"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown postal code"
+          }
+        }
+      }
+    },
+    "/{country}/{state}/{city}": {
+      "get": {
+        "summary": "Postal codes for a city",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "path",
+            "required": true,
+            "description": "ISO 3166-1 alpha-2 country code, lower case.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "us"
+          },
+          {
+            "name": "state",
+            "in": "path",
+            "required": true,
+            "description": "State abbreviation.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ca"
+          },
+          {
+            "name": "city",
+            "in": "path",
+            "required": true,
+            "description": "City name.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "beverly hills"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The city's postal codes",
+            "content": {
+              "application/json": {
+                "example": {
+                  "country": "United States",
+                  "country abbreviation": "US",
+                  "state": "California",
+                  "state abbreviation": "CA",
+                  "place name": "Beverly Hills",
+                  "places": [
+                    {
+                      "place name": "Beverly Hills",
+                      "longitude": "-118.2987",
+                      "latitude": "33.7866",
+                      "post code": "90209"
+                    },
+                    {
+                      "place name": "Beverly Hills",
+                      "longitude": "-118.4065",
+                      "latitude": "34.0901",
+                      "post code": "90210"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown city"
+          }
+        }
+      }
+    }
+  }
+}

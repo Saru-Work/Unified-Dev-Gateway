@@ -5,7 +5,6 @@ import { backend, BackendError } from "./backend";
 import type { User } from "./types";
 
 export const SESSION_COOKIE = "opengate_session";
-export const WSO2_COOKIE = "opengate_wso2_token";
 
 export const cookieDefaults = {
   httpOnly: true,
@@ -13,10 +12,6 @@ export const cookieDefaults = {
   secure: process.env.NODE_ENV === "production",
   path: "/",
 } as const;
-
-export async function getWso2Token(): Promise<string | undefined> {
-  return (await cookies()).get(WSO2_COOKIE)?.value;
-}
 
 /**
  * Returns the signed-in user and their token, or redirects to /login.
