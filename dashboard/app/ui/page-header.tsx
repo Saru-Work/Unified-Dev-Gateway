@@ -1,21 +1,21 @@
-import type { LucideIcon } from "lucide-react";
-import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import Link from "next/link";
 
 interface PageHeaderProps {
   title: React.ReactNode;
+  /** Small mono label above the title, e.g. the section of the app. */
+  eyebrow?: React.ReactNode;
   description?: React.ReactNode;
-  icon?: LucideIcon;
-  /** Replaces the plain icon, e.g. an API's category tile. */
+  /** Shown left of the title, e.g. an API's icon. */
   media?: React.ReactNode;
   back?: { href: string; label: string };
   actions?: React.ReactNode;
   children?: React.ReactNode;
 }
 
-export function PageHeader({ title, description, icon: Icon, media, back, actions, children }: PageHeaderProps) {
+export function PageHeader({ title, eyebrow, description, media, back, actions, children }: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-3">
+    <header className="flex flex-col gap-4 border-b border-border pb-6">
       {back && (
         <Link
           href={back.href}
@@ -25,17 +25,13 @@ export function PageHeader({ title, description, icon: Icon, media, back, action
           {back.label}
         </Link>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
-          {media ??
-            (Icon && (
-              <span className="icon-tile size-11">
-                <Icon aria-hidden className="size-5" />
-              </span>
-            ))}
-          <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            {description && <p className="max-w-3xl text-sm text-muted">{description}</p>}
+          {media}
+          <div className="flex min-w-0 flex-col gap-2">
+            {eyebrow && <span className="eyebrow">{eyebrow}</span>}
+            <h1 className="display text-4xl sm:text-[42px]">{title}</h1>
+            {description && <p className="max-w-2xl text-[15px] text-muted">{description}</p>}
             {children}
           </div>
         </div>

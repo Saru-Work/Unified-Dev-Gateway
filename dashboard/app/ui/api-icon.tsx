@@ -1,12 +1,12 @@
-import { categoryFor } from "@/lib/categories";
+import { CATEGORY_ICONS, categoryKey } from "@/lib/categories";
 
-const SIZES = { sm: "size-9 [&>svg]:size-4", md: "size-11 [&>svg]:size-5", lg: "size-14 [&>svg]:size-7" };
+const SIZES = { sm: "size-8 [&>svg]:size-4", md: "size-10 [&>svg]:size-[18px]", lg: "size-12 [&>svg]:size-5" };
 
 export function ApiIcon({ tags, size = "md" }: { tags?: readonly string[]; size?: keyof typeof SIZES }) {
-  const { icon: Icon, tone } = categoryFor(tags);
+  const Icon = CATEGORY_ICONS[categoryKey(tags)];
   return (
-    <span className={`icon-tile ${tone} ${SIZES[size]}`}>
-      <Icon aria-hidden />
+    <span className={`icon-tile ${SIZES[size]}`}>
+      <Icon aria-hidden strokeWidth={1.6} />
     </span>
   );
 }

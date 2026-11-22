@@ -11,8 +11,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-        <p className="text-sm text-muted">Sign in to your OpenGate account.</p>
+        <h1 className="display text-4xl">Sign in</h1>
+        <p className="text-sm text-muted">Welcome back. Use the email you signed up with.</p>
       </div>
       {expired && (
         <p className="notice-info">Your session has expired. Please sign in again.</p>

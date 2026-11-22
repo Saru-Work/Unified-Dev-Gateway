@@ -9,8 +9,8 @@ export default function RegisterPage() {
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
-        <p className="text-sm text-muted">Free, and it takes a minute.</p>
+        <h1 className="display text-4xl">Create an account</h1>
+        <p className="text-sm text-muted">An email and a password; you can start browsing APIs right after.</p>
       </div>
       <AuthForm
         action={register}

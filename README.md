@@ -362,6 +362,11 @@ curl -s -X DELETE $API/applications/6ae985a7348dc636274f99de \
 Open http://localhost:3000. The dashboard calls the backend from the Next.js
 server, so your browser only ever talks to `:3000` and never sees a token.
 
+A user guide is built in at http://localhost:3000/docs (public, no sign-in
+needed): key ideas, a quick start, keys and tokens, calling APIs from curl,
+JavaScript, Python and Postman, and troubleshooting with the gateway's real
+error codes.
+
 Navigation is a sidebar (a slide-out menu on phones). The look is light by
 default; switch to dark, or to follow your device, from the sidebar or
 **Settings → Appearance**.

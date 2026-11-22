@@ -14,6 +14,10 @@ import type {
 
 /** Explains WSO2 auth failures in terms the user can act on. */
 function applicationError(err: unknown): string {
+  // WSO2 answers 409 for a taken name (subscribe and generate-keys handle their own 409s).
+  if (err instanceof BackendError && err.status === 409) {
+    return "An application with that name already exists. Names are unique across OpenGate, so pick a more specific one.";
+  }
   if (err instanceof BackendError && (err.status === 401 || err.status === 403)) {
     return `WSO2 rejected the request (${err.message}). Ask an administrator to check OpenGate's WSO2 account.`;
   }
@@ -31,7 +35,6 @@ export async function createApplication(
   const fields = { name, description, throttlingPolicy };
 
   if (!name) return { error: "Give the application a name.", fields };
-
 
   let application: Application;
   try {
@@ -60,7 +63,6 @@ export async function updateApplication(
   const fields = { name, description, throttlingPolicy };
 
   if (!name) return { error: "The application needs a name.", fields };
-
 
   try {
     await backend(`/applications/${encodeURIComponent(id)}`, {

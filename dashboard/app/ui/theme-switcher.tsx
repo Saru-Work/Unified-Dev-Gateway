@@ -29,7 +29,7 @@ export function ThemeSwitcher({ initial, showLabels = false }: { initial: Theme;
     <div
       role="radiogroup"
       aria-label="Theme"
-      className="inline-flex rounded-lg border border-border bg-surface p-0.5"
+      className="inline-flex rounded-md border border-border bg-surface p-0.5"
     >
       {OPTIONS.map(({ value, label, icon: Icon }) => (
         <button
@@ -40,8 +40,8 @@ export function ThemeSwitcher({ initial, showLabels = false }: { initial: Theme;
           title={label}
           onClick={() => choose(value)}
           className={
-            "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors " +
-            (theme === value ? "bg-card text-foreground shadow-sm" : "text-muted hover:text-foreground")
+            "inline-flex items-center gap-1.5 rounded border border-transparent px-2 py-1 text-xs font-medium transition-colors " +
+            (theme === value ? "bg-card text-foreground border border-border" : "text-muted hover:text-foreground")
           }
         >
           <Icon aria-hidden className="size-4" />

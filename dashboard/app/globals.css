@@ -1,86 +1,66 @@
 @import "tailwindcss";
 
 /*
- * Theme tokens. Light is the default; <html data-theme> picks the theme
- * ("light", "dark" or "system", which follows the OS). See lib/theme.ts.
+ * OpenGate's look: warm paper, ink, hairline rules, one accent used sparingly.
+ * Light is the default; <html data-theme> picks "light", "dark" or "system"
+ * (follows the OS). See lib/theme.ts.
  */
 :root {
   color-scheme: light;
-  --background: #f6f7fb;
-  --card: #ffffff;
-  --surface: #f0f2f7;
-  --border: #e2e5ee;
-  --foreground: #0f172a;
-  --muted: #5d6779;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-foreground: #ffffff;
-  --accent-soft: #eef0ff;
-  --danger: #dc2626;
-  --danger-surface: #fef2f2;
-  --success: #15803d;
-  --success-surface: #ecfdf3;
-  --warning: #b45309;
-  --warning-surface: #fffbeb;
-  --info-surface: #eef4ff;
-  --ring: rgb(79 70 229 / 0.35);
-  --shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.06);
-  --shadow-lg: 0 10px 30px -12px rgb(15 23 42 / 0.18);
-  --hero: radial-gradient(1200px 500px at 10% -10%, #e0e7ff 0%, transparent 60%),
-    radial-gradient(900px 400px at 100% 0%, #fae8ff 0%, transparent 55%);
+  --background: #f8f6f1;
+  --card: #fffefb;
+  --surface: #f0ede5;
+  --border: #e3ded3;
+  --border-strong: #cdc6b8;
+  --foreground: #1b1a16;
+  --muted: #6d685d;
+  --accent: #c2410c;
+  --accent-soft: #f8e6db;
+  --danger: #b42318;
+  --danger-surface: #fbe9e7;
+  --success: #2d6a35;
+  --success-surface: #e6f0e3;
+  --info-surface: #ebe8df;
+  --ring: rgb(194 65 12 / 0.28);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #0a0c12;
-  --card: #11141c;
-  --surface: #191d28;
-  --border: #252a37;
-  --foreground: #e8eaf0;
-  --muted: #98a1b3;
-  --accent: #818cf8;
-  --accent-hover: #a5b4fc;
-  --accent-foreground: #0a0c12;
-  --accent-soft: #1c1f3d;
-  --danger: #f87171;
-  --danger-surface: #2a1215;
-  --success: #4ade80;
-  --success-surface: #0f2618;
-  --warning: #fbbf24;
-  --warning-surface: #2a2110;
-  --info-surface: #131d36;
-  --ring: rgb(129 140 248 / 0.45);
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-lg: 0 12px 32px -12px rgb(0 0 0 / 0.6);
-  --hero: radial-gradient(1200px 500px at 10% -10%, #1e1b4b 0%, transparent 60%),
-    radial-gradient(900px 400px at 100% 0%, #3b0764 0%, transparent 55%);
+  --background: #121110;
+  --card: #181715;
+  --surface: #211f1c;
+  --border: #2d2a26;
+  --border-strong: #423e37;
+  --foreground: #ece9e2;
+  --muted: #9c968a;
+  --accent: #f0864f;
+  --accent-soft: #2e1d13;
+  --danger: #f2877c;
+  --danger-surface: #2c1513;
+  --success: #8cc98f;
+  --success-surface: #172417;
+  --info-surface: #22201c;
+  --ring: rgb(240 134 79 / 0.35);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
     color-scheme: dark;
-    --background: #0a0c12;
-    --card: #11141c;
-    --surface: #191d28;
-    --border: #252a37;
-    --foreground: #e8eaf0;
-    --muted: #98a1b3;
-    --accent: #818cf8;
-    --accent-hover: #a5b4fc;
-    --accent-foreground: #0a0c12;
-    --accent-soft: #1c1f3d;
-    --danger: #f87171;
-    --danger-surface: #2a1215;
-    --success: #4ade80;
-    --success-surface: #0f2618;
-    --warning: #fbbf24;
-    --warning-surface: #2a2110;
-    --info-surface: #131d36;
-    --ring: rgb(129 140 248 / 0.45);
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 12px 32px -12px rgb(0 0 0 / 0.6);
-    --hero: radial-gradient(1200px 500px at 10% -10%, #1e1b4b 0%, transparent 60%),
-      radial-gradient(900px 400px at 100% 0%, #3b0764 0%, transparent 55%);
+    --background: #121110;
+    --card: #181715;
+    --surface: #211f1c;
+    --border: #2d2a26;
+    --border-strong: #423e37;
+    --foreground: #ece9e2;
+    --muted: #9c968a;
+    --accent: #f0864f;
+    --accent-soft: #2e1d13;
+    --danger: #f2877c;
+    --danger-surface: #2c1513;
+    --success: #8cc98f;
+    --success-surface: #172417;
+    --info-surface: #22201c;
+    --ring: rgb(240 134 79 / 0.35);
   }
 }
 
@@ -90,20 +70,27 @@
   --color-card: var(--card);
   --color-muted: var(--muted);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-surface: var(--surface);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-success: var(--success);
-  --color-warning: var(--warning);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans-ui);
+  --font-mono: var(--font-mono-ui);
+  --font-serif: var(--font-serif-ui);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans-ui), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--foreground);
 }
 
 :focus-visible {
@@ -111,38 +98,26 @@ body {
   outline-offset: 2px;
 }
 
-/* Category colours for icon tiles: color is the icon, background the tile. */
-.tone-indigo { --tone: #4f46e5; --tone-soft: #eef0ff; }
-.tone-sky { --tone: #0284c7; --tone-soft: #e0f2fe; }
-.tone-amber { --tone: #b45309; --tone-soft: #fef3c7; }
-.tone-emerald { --tone: #047857; --tone-soft: #d1fae5; }
-.tone-rose { --tone: #be123c; --tone-soft: #ffe4e6; }
-.tone-violet { --tone: #7c3aed; --tone-soft: #ede9fe; }
-.tone-orange { --tone: #c2410c; --tone-soft: #ffedd5; }
-.tone-teal { --tone: #0f766e; --tone-soft: #ccfbf1; }
-.tone-fuchsia { --tone: #a21caf; --tone-soft: #fae8ff; }
-.tone-slate { --tone: #475569; --tone-soft: #e2e8f0; }
-
-/* In dark mode, tiles lighten the tone and use a translucent tile behind it. */
-:root[data-theme="dark"] .icon-tile {
-  color: color-mix(in srgb, var(--tone, var(--accent)) 60%, white);
-  background: color-mix(in srgb, var(--tone, var(--accent)) 22%, transparent);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-theme="system"] .icon-tile {
-    color: color-mix(in srgb, var(--tone, var(--accent)) 60%, white);
-    background: color-mix(in srgb, var(--tone, var(--accent)) 22%, transparent);
-  }
-}
-
 @layer components {
+  /* Big editorial headings. */
+  .display {
+    font-family: var(--font-serif-ui), ui-serif, Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+  }
+
+  /* Small mono caps for section labels and metadata. */
+  .eyebrow {
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted;
+  }
+
   .field-label {
     @apply text-sm font-medium;
   }
 
   .field {
-    @apply w-full rounded-lg border border-border bg-card px-3 py-2 text-sm transition-shadow placeholder:text-muted;
+    @apply w-full rounded-md border border-border-strong bg-card px-3 py-2 text-sm transition-shadow placeholder:text-muted;
   }
 
   .field:focus {
@@ -152,26 +127,21 @@ body {
   }
 
   .button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60;
-    background: var(--accent);
-    color: var(--accent-foreground);
-    box-shadow: var(--shadow);
-  }
-
-  .button-primary:hover:not(:disabled) {
-    background: var(--accent-hover);
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-opacity hover:opacity-85 disabled:opacity-50;
+    background: var(--foreground);
+    color: var(--background);
   }
 
   .button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-surface disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border-strong bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-surface disabled:opacity-50;
   }
 
   .button-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground;
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground;
   }
 
   .button-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-danger bg-card px-3 py-1.5 text-sm font-medium text-danger transition-colors disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-danger/40 bg-card px-3 py-1.5 text-sm font-medium text-danger transition-colors disabled:opacity-50;
   }
 
   .button-danger:hover:not(:disabled) {
@@ -179,58 +149,111 @@ body {
   }
 
   .link {
-    @apply font-medium text-accent underline-offset-2 hover:underline;
+    @apply font-medium text-accent underline decoration-accent/30 underline-offset-[3px] transition-colors hover:decoration-accent;
   }
 
   .notice-error {
-    @apply rounded-lg px-3 py-2 text-sm text-danger;
+    @apply rounded-md border border-danger/25 px-3 py-2 text-sm text-danger;
     background: var(--danger-surface);
   }
 
   .notice-info {
-    @apply rounded-lg px-3 py-2 text-sm;
+    @apply rounded-md border border-border px-3 py-2 text-sm;
     background: var(--info-surface);
   }
 
   .notice-success {
-    @apply rounded-lg px-3 py-2 text-sm text-success;
+    @apply rounded-md border border-success/25 px-3 py-2 text-sm text-success;
     background: var(--success-surface);
   }
 
   .card {
-    @apply rounded-xl border border-border bg-card p-5;
-    box-shadow: var(--shadow);
+    @apply rounded-lg border border-border bg-card p-5;
   }
 
   .card-link {
-    @apply transition-all hover:-translate-y-0.5 hover:border-accent;
-  }
-
-  .card-link:hover {
-    box-shadow: var(--shadow-lg);
+    @apply transition-colors hover:border-border-strong hover:bg-surface/40;
   }
 
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-muted;
+    @apply inline-flex items-center gap-1 rounded border border-border bg-surface/60 px-1.5 py-0.5 font-mono text-[11px] text-muted;
   }
 
   .badge-accent {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-accent;
+    @apply inline-flex items-center gap-1 rounded border border-accent/30 px-1.5 py-0.5 font-mono text-[11px] text-accent;
     background: var(--accent-soft);
   }
 
   .badge-success {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-success;
+    @apply inline-flex items-center gap-1 rounded border border-success/30 px-1.5 py-0.5 font-mono text-[11px] text-success;
     background: var(--success-surface);
   }
 
+  /* A quiet square around an icon. */
   .icon-tile {
-    @apply inline-flex shrink-0 items-center justify-center rounded-xl;
-    color: var(--tone, var(--accent));
-    background: var(--tone-soft, var(--accent-soft));
+    @apply inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground;
   }
 
-  .hero-bg {
-    background: var(--hero);
+  /* HTTP methods, as in most API references. */
+  .method {
+    @apply inline-flex w-14 shrink-0 justify-center rounded border px-1 py-0.5 font-mono text-[11px] font-semibold;
   }
+  .method-GET { color: #1f6f3f; border-color: #1f6f3f33; background: #1f6f3f12; }
+  .method-POST { color: #1d4f91; border-color: #1d4f9133; background: #1d4f9112; }
+  .method-PUT, .method-PATCH { color: #8a5a00; border-color: #8a5a0033; background: #8a5a0012; }
+  .method-DELETE { color: #a3271b; border-color: #a3271b33; background: #a3271b12; }
+
+  .code-block {
+    @apply overflow-auto rounded-md border border-border bg-surface/70 p-3 font-mono text-xs leading-relaxed;
+  }
+
+  /* Long-form text on the docs page. */
+  .prose-docs {
+    @apply flex flex-col gap-4 text-[15px] leading-7;
+  }
+  .prose-docs h2 {
+    @apply mt-6 scroll-mt-24 text-3xl;
+    font-family: var(--font-serif-ui), ui-serif, Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+  }
+  .prose-docs h3 {
+    @apply mt-2 scroll-mt-24 text-base font-semibold;
+  }
+  .prose-docs p,
+  .prose-docs li {
+    @apply text-foreground/90;
+  }
+  .prose-docs ul,
+  .prose-docs ol {
+    @apply flex flex-col gap-1.5 pl-5;
+  }
+  .prose-docs ul { list-style: disc; }
+  .prose-docs ol { list-style: decimal; }
+  .prose-docs li::marker { color: var(--muted); }
+  .prose-docs :not(pre) > code {
+    @apply rounded border border-border bg-surface px-1 py-px font-mono text-[0.85em];
+  }
+  .prose-docs table {
+    @apply w-full border-collapse text-sm;
+  }
+  .prose-docs th {
+    @apply border-b border-border-strong py-2 pr-4 text-left font-medium;
+  }
+  .prose-docs td {
+    @apply border-b border-border py-2 pr-4 align-top;
+  }
+}
+
+:root[data-theme="dark"] .method-GET { color: #7fd19a; border-color: #7fd19a33; background: #7fd19a12; }
+:root[data-theme="dark"] .method-POST { color: #8fb8f5; border-color: #8fb8f533; background: #8fb8f512; }
+:root[data-theme="dark"] :is(.method-PUT, .method-PATCH) { color: #e9bf6a; border-color: #e9bf6a33; background: #e9bf6a12; }
+:root[data-theme="dark"] .method-DELETE { color: #f2877c; border-color: #f2877c33; background: #f2877c12; }
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .method-GET { color: #7fd19a; border-color: #7fd19a33; background: #7fd19a12; }
+  :root[data-theme="system"] .method-POST { color: #8fb8f5; border-color: #8fb8f533; background: #8fb8f512; }
+  :root[data-theme="system"] :is(.method-PUT, .method-PATCH) { color: #e9bf6a; border-color: #e9bf6a33; background: #e9bf6a12; }
+  :root[data-theme="system"] .method-DELETE { color: #f2877c; border-color: #f2877c33; background: #f2877c12; }
 }

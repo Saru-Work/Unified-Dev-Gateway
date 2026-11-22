@@ -328,12 +328,14 @@ has its own. A second, readable cookie, `opengate_theme` (`light`, `dark` or
 `<html data-theme>`, so the server renders the chosen theme with no flash.
 `app/ui/theme-switcher.tsx` sets both the attribute and the cookie.
 
-**UI.** Theme tokens (light by default, dark, and "system" via
-`prefers-color-scheme`) and the component classes (`card`, `button-*`,
-`badge*`, `icon-tile`, `tone-*`) live in `app/globals.css`. Icons come from
-`lucide-react`. Shared pieces are in `app/ui/` (page header, empty state,
-logo, API icon, theme switcher). `lib/categories.ts` maps WSO2 tags to an
-icon and colour; `lib/apis.ts` loads the catalog (the list plus each API's
+**UI.** A warm paper-and-ink look with hairline rules and one accent colour.
+Theme tokens (light by default, dark, and "system" via `prefers-color-scheme`)
+and the component classes (`display` serif headings, `eyebrow` mono labels,
+`card`, `button-*`, `badge*`, `icon-tile`, `method-*`, `code-block`,
+`prose-docs`) live in `app/globals.css`. Fonts are Instrument Sans, Instrument
+Serif and JetBrains Mono via `next/font`; icons come from `lucide-react`.
+Shared pieces are in `app/ui/` (page header, empty state, logo, API icon,
+site header, theme switcher). `lib/categories.ts` maps WSO2 tags to an icon; `lib/apis.ts` loads the catalog (the list plus each API's
 details, since WSO2's list leaves tags out).
 
 `proxy.ts` redirects requests without a session cookie to
@@ -345,6 +347,7 @@ before doing anything.
 | Route | What it does |
 |-------|--------------|
 | `/` | Public landing page: hero, the live list of API categories, features, steps |
+| `/docs` | Public user guide with a sticky table of contents; its troubleshooting table uses error codes observed from the gateway |
 | `/login`, `/register` | `(auth)` group: forms backed by `app/actions/auth.ts` |
 | `/dashboard` | Overview, where sign-in lands: counts (subscriptions and keys are read per app, in parallel), a getting-started checklist driven by that data, recent applications, one featured API per category |
 | `/applications` | The user's applications, newest first, filtered on the server with `?q=` (name, description, policy) |

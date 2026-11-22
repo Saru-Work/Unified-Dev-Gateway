@@ -1,4 +1,4 @@
-import { AppWindow, Globe, Info, Layers, Plus, Tag } from "lucide-react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -54,39 +54,36 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
       <PageHeader
         back={{ href: "/apis", label: "API catalog" }}
         media={<ApiIcon tags={api.tags} size="lg" />}
-        title={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {api.name}
-            {api.version && <span className="badge">v{api.version}</span>}
-            {api.lifeCycleStatus && <span className="badge-success">{api.lifeCycleStatus.toLowerCase()}</span>}
+        eyebrow={
+          <span className="flex flex-wrap items-center gap-2">
+            API · v{api.version}
+            {api.lifeCycleStatus && <span className="badge-success normal-case">{api.lifeCycleStatus.toLowerCase()}</span>}
           </span>
         }
+        title={api.name}
         description={text || undefined}
         actions={
           docsUrl && (
             <a href={docsUrl} target="_blank" rel="noreferrer" className="button-secondary">
-              <Globe aria-hidden className="size-4" /> Provider docs
+              Provider docs <ArrowUpRight aria-hidden className="size-4" />
             </a>
           )
         }
       />
 
-      <div className="grid items-start gap-6 lg:grid-cols-3">
-        <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
+      <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="flex min-w-0 flex-col gap-6">
           <EndpointsSection operations={docs.operations} baseUrl={endpoints[0]?.url} error={docs.error} />
         </div>
 
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-8">
           <section className="card flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <Plus aria-hidden className="size-4.5 text-accent" />
-              <h2 className="font-semibold">Subscribe</h2>
-            </div>
+            <h2 className="eyebrow">Subscribe</h2>
             {applications.length === 0 ? (
               <div className="flex flex-col items-start gap-3">
                 <p className="text-sm text-muted">You need an application to subscribe with.</p>
                 <Link href="/applications/new" className="button-primary">
-                  <AppWindow aria-hidden className="size-4" /> Create an application
+                  <Plus aria-hidden className="size-4" /> Create an application
                 </Link>
               </div>
             ) : tiers.length === 0 ? (
@@ -104,10 +101,7 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
           </section>
 
           <section className="card flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <Info aria-hidden className="size-4.5 text-accent" />
-              <h2 className="font-semibold">Details</h2>
-            </div>
+            <h2 className="eyebrow">Details</h2>
             <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
               {api.context && (
                 <>
@@ -126,9 +120,7 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
             </dl>
             {tiers.length > 0 && (
               <div className="flex flex-col gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
-                  <Layers aria-hidden className="size-3.5" /> Tiers
-                </span>
+                <span className="text-xs text-muted">Tiers</span>
                 <div className="flex flex-wrap gap-1.5">
                   {tiers.map((t) => <span key={t} className="badge">{t}</span>)}
                 </div>
@@ -136,9 +128,7 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
             )}
             {api.tags && api.tags.length > 0 && (
               <div className="flex flex-col gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
-                  <Tag aria-hidden className="size-3.5" /> Tags
-                </span>
+                <span className="text-xs text-muted">Tags</span>
                 <div className="flex flex-wrap gap-1.5">
                   {api.tags.map((t) => (
                     <Link key={t} href={`/apis?tag=${encodeURIComponent(t)}`} className="badge-accent hover:underline">
@@ -152,10 +142,7 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
 
           {endpoints.length > 0 && (
             <section className="card flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <Globe aria-hidden className="size-4.5 text-accent" />
-                <h2 className="font-semibold">Gateway URLs</h2>
-              </div>
+              <h2 className="eyebrow">Gateway URLs</h2>
               <ul className="flex flex-col gap-3">
                 {endpoints.map(({ env, url }) => (
                   <li key={url} className="flex flex-col gap-1">

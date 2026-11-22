@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { parseTheme, THEME_COOKIE } from "@/lib/theme";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const sans = Instrument_Sans({ variable: "--font-sans-ui", subsets: ["latin"] });
+const serif = Instrument_Serif({ variable: "--font-serif-ui", subsets: ["latin"], weight: "400" });
+const mono = JetBrains_Mono({ variable: "--font-mono-ui", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "OpenGate",
@@ -26,7 +20,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       data-theme={theme}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${sans.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

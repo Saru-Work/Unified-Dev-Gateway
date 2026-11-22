@@ -16,10 +16,8 @@ export function ErrorPanel({ error, retry }: ErrorProps) {
 
   return (
     <div role="alert" className="card flex max-w-xl flex-col items-start gap-3">
-      <span className="icon-tile tone-rose size-11">
-        <TriangleAlert aria-hidden className="size-5" />
-      </span>
-      <h1 className="text-xl font-semibold">Something went wrong</h1>
+      <TriangleAlert aria-hidden className="size-5 text-danger" strokeWidth={1.75} />
+      <h1 className="display text-3xl">Something went wrong</h1>
       <p className="text-sm text-muted">
         The page couldn&apos;t be loaded. The OpenGate backend or WSO2 API
         Manager may be unavailable; try again in a moment.
