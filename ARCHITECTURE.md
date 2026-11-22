@@ -137,6 +137,7 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 | `GET`  | `/applications/:id` | OpenGate JWT | `{ application }`. Another user's app or an unknown/malformed id → `404` |
 | `PATCH` | `/applications/:id` | OpenGate JWT | `{ name?, description?, throttlingPolicy? }` → `{ application }`. WSO2's update is a full `PUT`, so stored values (including the policy) are merged in and the token type is re-sent. WSO2 first; a refusal leaves the record unchanged. |
 | `DELETE` | `/applications/:id` | OpenGate JWT | `204`. Deletes in WSO2 first (a WSO2 `404` counts as already gone), then removes the record. Ownership is checked before WSO2 is called. |
+| `GET` | `/applications/:id/usage` | OpenGate JWT | `?range=24h\|7d\|30d` → `{ enabled: true, range, unit, from, to, totals: { calls, errors, throttled, errorRate, avgLatencyMs?, p95LatencyMs? }, series: [{ start, calls, errors }], apis, statuses, lastCallAt? }` (hourly buckets for 24h, daily for 7d/30d, UTC; empty buckets included). `{ enabled: false }` without `USAGE_METRICS_LOG`. Owner-checked like every application route. |
 | `GET` | `/applications/:id/keys` | OpenGate JWT | `{ keys: [...] }` from WSO2 `oauth-keys`. Secrets and access tokens are never included. |
 | `POST` | `/applications/:id/keys` | OpenGate JWT | `{ keyType: "PRODUCTION" \| "SANDBOX" }` → `201 { key }` with `consumerKey` **and `consumerSecret`**, the only time the secret is returned. Client-credentials grant, Resident Key Manager. Existing keys → WSO2's `409`. |
 | `DELETE` | `/applications/:id/keys/:keyMappingId` | OpenGate JWT | `204`. Checks the mapping is among the app's keys first (WSO2 answers `500` for unknown ones), so a missing one is `404`. WSO2 revokes the secret and every token issued from it. |
@@ -235,6 +236,24 @@ createdAt / updatedAt                  description        string  default ""
                                        throttlingPolicy   string  default "Unlimited"
                                        createdAt / updatedAt
 ```
+
+`usageevents` (one per gateway call: `correlationId` unique,
+`wso2ApplicationId`, `apiId`, `apiName`, `resource`, `method`, `status`,
+`latencyMs`, `errorType`, `timestamp`; indexed by application and time, and
+deleted by a TTL index after 30 days) and `usagecursors` (how far the
+collector has read each log: file → inode and byte offset).
+
+**Usage pipeline** (`src/usage/`). WSO2's gateway, with `elk` analytics on,
+writes `apimMetrics: apim:response|apim:faulty, properties :{json}` lines to
+`apim_metrics.log` on a volume the backend mounts read-only.
+`MetricsLogCollector` polls it every 5 seconds, reads up to 1 MB at a time,
+consumes only complete lines, and saves its position; a new inode or a file
+shorter than the saved offset means rotation, so it starts over.
+`parseMetricLine` keeps calls that name an application (WSO2 reports
+`UNKNOWN` for calls rejected before authentication) and drops the caller's
+IP. Inserts are unordered and ignore duplicate correlation ids, so reading
+twice is harmless. Queries group by `$dateTrunc` bucket, API and status, take
+the p95 with `$percentile`, and `summarize` fills empty buckets and totals.
 
 The repositories turn malformed ObjectId strings into `null` ("not
 found") rather than letting Mongoose throw a `CastError`, which would
@@ -352,7 +371,7 @@ before doing anything.
 | `/dashboard` | Overview, where sign-in lands: counts (subscriptions and keys are read per app, in parallel), a getting-started checklist driven by that data, recent applications, one featured API per category |
 | `/applications` | The user's applications, newest first, filtered on the server with `?q=` (name, description, policy) |
 | `/applications/new` | Create. The throttling policy select is filled from `/throttling-policies/application` and hidden if that can't be loaded. |
-| `/applications/[id]` | Details; OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new or regenerated secret is held in client state only, so those actions deliberately don't revalidate. Regenerating asks for an inline confirmation first. |
+| `/applications/[id]` | Details; a Usage section (`?range=24h|7d|30d`: stat tiles, a single-series column chart with hover/focus tooltips and a table view, by-API and by-status tables); OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new or regenerated secret is held in client state only, so those actions deliberately don't revalidate. Regenerating asks for an inline confirmation first. |
 | `/applications/[id]/edit` | Rename, re-describe, or change the throttling policy |
 | `/apis` | The API catalog, filtered on the server with `?q=` and `?tag=` (category chips with counts) |
 | `/apis/[id]` | API details, a form to subscribe one of your apps on one of its tiers, an **Endpoints** section (one collapsible entry per operation: parameters, body fields, example responses, and a sample `curl` filled with example values against the first gateway URL), and the gateway URLs |
@@ -440,4 +459,4 @@ layout itself, such as the backend being unreachable.
 | `/apis` | Unauthenticated and sends no WSO2 token, so only public APIs show up. | Decide on visibility, then forward the right credentials. |
 | Dashboard | No session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the sessions row above. Add Playwright end-to-end tests. |
 | SDK | `packages/sdk` not implemented. | Generate it from `/openapi.json` (e.g. `openapi-typescript`), then use it in the dashboard instead of the hand-written types in `lib/types.ts`. |
-| Observability | JSON request logs with ids and a `/ready` check exist, but there are no metrics, and the request id isn't forwarded to WSO2 or from the dashboard. | Forward `X-Request-Id` end to end; add request metrics (e.g. Prometheus). |
+| Observability | JSON request logs with ids, `/ready`, and per-application usage from the gateway's analytics log. No metrics endpoint for the backend itself, and the request id isn't forwarded to WSO2 or from the dashboard. Usage is read from a file on a shared volume, which assumes one gateway node. | Forward `X-Request-Id` end to end; Prometheus metrics; with several gateway nodes, ship analytics to a collector instead of a shared file. |

@@ -22,6 +22,8 @@
   --success-surface: #e6f0e3;
   --info-surface: #ebe8df;
   --ring: rgb(194 65 12 / 0.28);
+  /* Single-series chart marks; validated against --card (dataviz checks). */
+  --chart-series: #c2410c;
 }
 
 :root[data-theme="dark"] {
@@ -41,6 +43,7 @@
   --success-surface: #172417;
   --info-surface: #22201c;
   --ring: rgb(240 134 79 / 0.35);
+  --chart-series: #e0703a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,6 +64,7 @@
     --success-surface: #172417;
     --info-surface: #22201c;
     --ring: rgb(240 134 79 / 0.35);
+    --chart-series: #e0703a;
   }
 }
 

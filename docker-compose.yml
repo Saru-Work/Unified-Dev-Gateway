@@ -72,11 +72,15 @@ services:
       WSO2_ALLOW_SELF_SIGNED: "true"
       MONGO_URI: mongodb://mongo:27017/opengate
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (32+ bytes) in .env}
+      # The gateway's analytics log, read for per-application usage.
+      USAGE_METRICS_LOG: /wso2-logs/apim_metrics.log
       # The WSO2 account OpenGate acts as. admin/admin is WSO2's out-of-the-box login.
       WSO2_USERNAME: ${WSO2_USERNAME:-admin}
       WSO2_PASSWORD: ${WSO2_PASSWORD:-admin}
       WSO2_CLIENT_ID: ${WSO2_CLIENT_ID:-}
       WSO2_CLIENT_SECRET: ${WSO2_CLIENT_SECRET:-}
+    volumes:
+      - wso2am-470-logs:/wso2-logs:ro
     networks:
       - devgateway
     depends_on:

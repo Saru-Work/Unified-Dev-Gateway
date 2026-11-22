@@ -62,6 +62,8 @@ For developers (the people calling APIs):
   - Delete keys and generate new ones if a secret is lost or leaked.
   - See an overview of their applications, subscriptions and keys, with a
     checklist of next steps.
+  - See each application's usage: calls over time, error rate, throttled
+    calls, latency, and a breakdown by API and response status.
   - Read a built-in user guide (/docs) with examples in curl, JavaScript,
     Python and Postman, plus a troubleshooting table of real error codes.
   - Do all of the above from scripts or CI through OpenGate's REST API,
@@ -217,8 +219,8 @@ WHY IT'S SAFE TO PUT IN FRONT OF DEVELOPERS
 WHAT IT DOESN'T DO YET
 ----------------------
 
-  - Provider quotas are shared: everyone using a key-included API shares the
-    provider's limits, and there's no per-developer usage view yet.
+  - Provider quotas are shared: a shared limit protects the provider, but
+    one busy developer can still use it all; there's no fair share yet.
 
 These matter before opening OpenGate to the public internet:
 
@@ -228,7 +230,6 @@ These matter before opening OpenGate to the public internet:
     must be unique across all developers.
   - Only public APIs are listed; there are no private or per-team APIs.
   - Sessions last 15 minutes with no "stay signed in".
-  - No usage analytics per application yet.
   - "Regenerate secret" fails on WSO2 4.7.0 itself; deleting the keys and
     generating new ones is the workaround.
   - The dashboard container runs in development mode; a production build

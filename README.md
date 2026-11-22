@@ -476,6 +476,27 @@ means the token is missing or expired: note that the consumer key or secret
 themselves are not tokens. A gateway `403` means the app isn't subscribed to
 that API.
 
+### 4.10 See an application's usage
+
+Each application's page has a **Usage** section: calls, error rate, throttled
+calls (`429`), p95 and average latency, a chart of calls per hour (24 hours)
+or per day (7 or 30 days), and breakdowns by API and by response status. The
+same data is at `GET /applications/:id/usage?range=24h|7d|30d`.
+
+How it's collected: `wso2-config/wso2-start.sh` turns on WSO2's `elk`
+analytics, so the gateway writes one JSON event per call to
+`repository/logs/apim_metrics.log`. That directory is the `wso2am-470-logs`
+volume, mounted read-only into the backend, which follows the file
+(`USAGE_METRICS_LOG`), ties each event to an application by WSO2's
+application id, and stores it in MongoDB for 30 days. Events are unique by
+correlation id, so re-reading the log never double-counts, and the read
+position survives restarts and log rotation. The caller's IP address isn't
+stored.
+
+Calls WSO2 rejects before it knows the application (no token, an invalid
+token, or a path the API doesn't have) can't be attributed and aren't
+counted. Throttled calls are. Numbers appear a few seconds after a call.
+
 ---
 
 ## 5. API reference
@@ -500,6 +521,7 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | `GET` | `/applications/:id` | `Authorization` | none | `200 {application}` |
 | `PATCH` | `/applications/:id` | `Authorization` | `{name?, description?, throttlingPolicy?}` | `200 {application}` |
 | `DELETE` | `/applications/:id` | `Authorization` | none | `204` |
+| `GET` | `/applications/:id/usage` | `Authorization` | `?range=24h\|7d\|30d` | `200 {enabled, totals, series, apis, statuses, lastCallAt}`, or `{enabled: false}` when usage isn't collected |
 | `GET` | `/applications/:id/keys` | `Authorization` | none | `200 {keys}` (no secrets) |
 | `POST` | `/applications/:id/keys` | `Authorization` | `{keyType: "PRODUCTION" \| "SANDBOX"}` | `201 {key}` incl. `consumerSecret`, shown once |
 | `DELETE` | `/applications/:id/keys/:keyMappingId` | `Authorization` | none | `204`; revokes the secret and its tokens. `404` if the app has no such keys |
@@ -578,6 +600,7 @@ add `ports: ["27017:27017"]` under `mongo`.
 | `WSO2_ALLOW_SELF_SIGNED` | no | `false` |
 | `WSO2_USERNAME`, `WSO2_PASSWORD` | yes | none (compose: `admin` / `admin`) |
 | `WSO2_CLIENT_ID`, `WSO2_CLIENT_SECRET` | no (both or neither) | none: an OAuth client is registered on first use |
+| `USAGE_METRICS_LOG` | no | none: usage is off. Compose sets `/wso2-logs/apim_metrics.log` |
 | `PORT` | no | `4000` |
 
 ### Dashboard

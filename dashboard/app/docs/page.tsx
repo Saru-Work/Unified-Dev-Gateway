@@ -269,6 +269,16 @@ export default function DocsPage() {
                 default.
               </li>
             </ul>
+            <h3>Usage</h3>
+            <p>
+              An application&apos;s page shows its <strong>Usage</strong> for the last 24 hours,
+              7 days or 30 days: how many calls it made, the error rate, how many were throttled
+              (<code>429</code>), latency, and a breakdown by API and response status. Calls
+              appear a few seconds after they go through the gateway; hover a column for its
+              numbers, or open the table view. Calls the gateway rejects before it knows which
+              application made them (no token, an invalid token, or a wrong path) aren&apos;t
+              counted. Usage is kept for 30 days.
+            </p>
             <h3>Editing and deleting</h3>
             <p>
               <strong>Edit</strong> changes the name, description or policy; keys and

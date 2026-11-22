@@ -417,6 +417,23 @@ export const openApiDocument = {
         },
       },
     },
+    "/applications/{id}/usage": {
+      parameters: [idParam],
+      get: {
+        summary: "Calls this application made through the gateway",
+        description:
+          "From the WSO2 gateway's analytics log. `{ enabled: false }` when the backend isn't collecting it. " +
+          "Hourly buckets for 24h, daily for 7d and 30d (UTC). Kept for 30 days.",
+        security: user,
+        parameters: [{ name: "range", in: "query", schema: { enum: ["24h", "7d", "30d"], default: "24h" } }],
+        responses: {
+          "200": ok("Usage", { type: "object" }),
+          "400": errors["400"],
+          "401": errors["401"],
+          "404": errors["404"],
+        },
+      },
+    },
     "/applications/{id}/subscriptions": {
       parameters: [idParam],
       get: {

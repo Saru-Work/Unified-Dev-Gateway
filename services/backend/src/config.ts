@@ -18,6 +18,8 @@ export interface AppConfig {
   /** Optional pre-registered OAuth client; otherwise one is registered on first use. */
   wso2ClientId?: string;
   wso2ClientSecret?: string;
+  /** WSO2's apim_metrics.log, read for per-application usage; usage is off without it. */
+  usageMetricsLog?: string;
 }
 
 export function loadConfig(): AppConfig {
@@ -32,6 +34,7 @@ export function loadConfig(): AppConfig {
     wso2Username: required("WSO2_USERNAME"),
     wso2Password: required("WSO2_PASSWORD"),
     ...optionalClient(),
+    ...(process.env.USAGE_METRICS_LOG && { usageMetricsLog: process.env.USAGE_METRICS_LOG }),
   };
 }
 
