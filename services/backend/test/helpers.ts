@@ -3,6 +3,14 @@ import type { Server } from "node:http";
 import { createApp } from "../src/app";
 import type { HttpResult, Wso2Transport } from "../src/integrations/wso2/client";
 import type { Wso2TokenSource } from "../src/integrations/wso2/Wso2TokenProvider";
+import type { UsageEvent } from "../src/usage/metricsLog";
+import {
+  truncate,
+  type IUsageRepository,
+  type LogCursor,
+  type UsageQuery,
+  type UsageRollupRow,
+} from "../src/usage/UsageRepository";
 import type {
   ApplicationChanges,
   ApplicationRecord,
@@ -211,7 +219,64 @@ export interface TestServer {
   login(email?: string): Promise<Record<string, string>>;
 }
 
-export async function startTestServer(): Promise<TestServer> {
+/** In-memory stand-in for the Mongo usage repository, with the same rollup semantics. */
+export class InMemoryUsageRepository implements IUsageRepository {
+  readonly events = new Map<string, UsageEvent>();
+  readonly cursors = new Map<string, LogCursor>();
+
+  async insertMany(events: UsageEvent[]): Promise<void> {
+    for (const e of events) if (!this.events.has(e.correlationId)) this.events.set(e.correlationId, e);
+  }
+
+  private matching(q: { wso2ApplicationId: string; from: Date; to: Date }): UsageEvent[] {
+    return [...this.events.values()].filter(
+      (e) => e.wso2ApplicationId === q.wso2ApplicationId && e.timestamp >= q.from && e.timestamp < q.to,
+    );
+  }
+
+  async rollup(q: UsageQuery): Promise<UsageRollupRow[]> {
+    const rows = new Map<string, UsageRollupRow>();
+    for (const e of this.matching(q)) {
+      const bucket = truncate(e.timestamp, q.unit);
+      const key = `${bucket.getTime()}|${e.apiId}|${e.status}`;
+      const row = rows.get(key) ?? {
+        bucket, apiId: e.apiId, apiName: e.apiName, status: e.status, calls: 0, latencySum: 0, latencyCount: 0,
+      };
+      row.calls++;
+      if (e.latencyMs !== undefined) {
+        row.latencySum += e.latencyMs;
+        row.latencyCount++;
+      }
+      rows.set(key, row);
+    }
+    return [...rows.values()];
+  }
+
+  async latencyP95(q: Omit<UsageQuery, "unit">): Promise<number | undefined> {
+    const values = this.matching(q)
+      .map((e) => e.latencyMs)
+      .filter((v): v is number => v !== undefined)
+      .sort((a, b) => a - b);
+    return values.length ? values[Math.ceil(0.95 * values.length) - 1] : undefined;
+  }
+
+  async lastCallAt(wso2ApplicationId: string): Promise<Date | undefined> {
+    const times = [...this.events.values()]
+      .filter((e) => e.wso2ApplicationId === wso2ApplicationId)
+      .map((e) => e.timestamp.getTime());
+    return times.length ? new Date(Math.max(...times)) : undefined;
+  }
+
+  async getCursor(file: string): Promise<LogCursor | null> {
+    return this.cursors.get(file) ?? null;
+  }
+
+  async saveCursor(file: string, cursor: LogCursor): Promise<void> {
+    this.cursors.set(file, { ...cursor });
+  }
+}
+
+export async function startTestServer(options: { usage?: IUsageRepository } = {}): Promise<TestServer> {
   const wso2 = new FakeWso2();
   const wso2Token = new FakeWso2Token();
   const tokens = new UserTokenService(TEST_SECRET);
@@ -225,6 +290,7 @@ export async function startTestServer(): Promise<TestServer> {
     tokens,
     wso2,
     wso2Token,
+    usage: options.usage,
   });
 
   const server: Server = await new Promise((resolve) => {

@@ -5,6 +5,8 @@ import { loadConfig } from "./config";
 import { Wso2Client } from "./integrations/wso2/client";
 import { Wso2TokenProvider } from "./integrations/wso2/Wso2TokenProvider";
 import { jsonLogger } from "./observability/requestLogging";
+import { MetricsLogCollector } from "./usage/MetricsLogCollector";
+import { UsageRepository } from "./usage/UsageRepository";
 import { UserRepository } from "./repositories/UserRepository";
 import { ApplicationRepository } from "./repositories/ApplicationRepository";
 import { PasswordHasher } from "./security/PasswordHasher";
@@ -27,6 +29,13 @@ async function main() {
     log: (msg, error) => jsonLogger({ level: "error", msg, error }),
   });
 
+  let usage: UsageRepository | undefined;
+  if (config.usageMetricsLog) {
+    usage = new UsageRepository();
+    new MetricsLogCollector(config.usageMetricsLog, usage, { log: jsonLogger }).start();
+    jsonLogger({ level: "info", msg: "Collecting usage", file: config.usageMetricsLog });
+  }
+
   const app = createApp({
     users: new UserRepository(),
     applications: new ApplicationRepository(),
@@ -34,6 +43,7 @@ async function main() {
     tokens: new UserTokenService(config.jwtSecret),
     wso2,
     wso2Token,
+    usage,
     readinessChecks: {
       mongo: async () => {
         const db = mongoose.connection.db;

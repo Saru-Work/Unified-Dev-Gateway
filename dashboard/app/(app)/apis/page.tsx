@@ -1,11 +1,11 @@
-import { ArrowUpRight, Boxes, Layers, Search, SearchX } from "lucide-react";
+import { ChevronRight, KeyRound, Search, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ApiIcon } from "@/app/ui/api-icon";
 import { EmptyState } from "@/app/ui/empty-state";
 import { PageHeader } from "@/app/ui/page-header";
 import { listCatalog, splitDocsLink, type CatalogApi } from "@/lib/apis";
-import { tagLabel } from "@/lib/categories";
+import { categoryLabel, tagLabel } from "@/lib/categories";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "API catalog · OpenGate" };
@@ -43,42 +43,42 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
   return (
     <>
       <PageHeader
-        icon={Boxes}
-        title="API catalog"
-        description="Every public API published in WSO2 API Manager. Open one for its endpoints, parameters and examples, then subscribe an application."
+        eyebrow="Catalog"
+        title="APIs"
+        description="Every public API published in WSO2 API Manager. Open one for its endpoints, parameters and examples, then subscribe an application to it."
       />
 
       <div className="flex flex-col gap-4">
-        <form role="search" className="relative max-w-xl">
+        <form role="search" className="relative max-w-lg">
           {tag && <input type="hidden" name="tag" value={tag} />}
           <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
-            className="field py-2.5 pl-9"
+            className="field pl-9"
             type="search"
             name="q"
             defaultValue={query}
-            placeholder="Search by name, description, context or tag"
+            placeholder="Search name, description, context or tag"
             aria-label="Search APIs"
           />
         </form>
 
         {tags.length > 0 && (
-          <nav aria-label="Categories" className="flex flex-wrap gap-2">
+          <nav aria-label="Categories" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
             <Link
               href={href(query, undefined)}
               aria-current={!tag ? "page" : undefined}
-              className={!tag ? "badge-accent px-3 py-1" : "badge px-3 py-1 hover:text-foreground"}
+              className={!tag ? "font-medium text-foreground underline decoration-accent decoration-2 underline-offset-[6px]" : "text-muted hover:text-foreground"}
             >
-              All <span className="opacity-70">{searched.length}</span>
+              All <span className="font-mono text-xs text-muted">{searched.length}</span>
             </Link>
             {tags.map(([t, count]) => (
               <Link
                 key={t}
                 href={href(query, t === tag ? undefined : t)}
                 aria-current={t === tag ? "page" : undefined}
-                className={t === tag ? "badge-accent px-3 py-1" : "badge px-3 py-1 hover:text-foreground"}
+                className={t === tag ? "font-medium text-foreground underline decoration-accent decoration-2 underline-offset-[6px]" : "text-muted hover:text-foreground"}
               >
-                {tagLabel(t)} <span className="opacity-70">{count}</span>
+                {tagLabel(t)} <span className="font-mono text-xs text-muted">{count}</span>
               </Link>
             ))}
           </nav>
@@ -87,63 +87,53 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
 
       {apis.length === 0 ? (
         all.length === 0 ? (
-          <EmptyState icon={Boxes} title="No APIs published yet">
+          <EmptyState icon={SearchX} title="No APIs published yet">
             APIs show up here once they&apos;re published in the WSO2 Publisher portal.
           </EmptyState>
         ) : (
           <EmptyState
             icon={SearchX}
-            title={query ? `No APIs match “${query}”` : "No APIs in this category"}
+            title={query ? `Nothing matches “${query}”` : "No APIs in this category"}
             action={<Link href="/apis" className="button-secondary">Clear filters</Link>}
           />
         )
       ) : (
-        <>
-          <p className="-mb-4 text-sm text-muted">
-            {apis.length} {apis.length === 1 ? "API" : "APIs"}
-            {tag && <> in {tagLabel(tag)}</>}
-            {query && <> matching “{query}”</>}
-          </p>
-          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="flex flex-col gap-2">
+          <div className="hidden grid-cols-[minmax(0,1fr)_120px_150px_20px] gap-6 px-4 lg:grid">
+            <span className="eyebrow">{apis.length} {apis.length === 1 ? "API" : "APIs"}</span>
+            <span className="eyebrow">Category</span>
+            <span className="eyebrow">Context</span>
+          </div>
+          <ul className="overflow-hidden rounded-lg border border-border bg-card">
             {apis.map((api) => (
-              <li key={api.id}>
+              <li key={api.id} className="border-b border-border last:border-b-0">
                 <Link
                   href={`/apis/${api.id}`}
-                  className="card card-link group flex h-full flex-col gap-4"
+                  className="group grid items-center gap-x-6 gap-y-1 px-4 py-4 transition-colors hover:bg-surface/50 lg:grid-cols-[minmax(0,1fr)_120px_150px_20px]"
                 >
-                  <div className="flex items-start gap-3">
+                  <span className="flex min-w-0 items-center gap-4">
                     <ApiIcon tags={api.tags} />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="flex items-center gap-2 font-semibold">
-                        <span className="truncate">{api.name}</span>
-                        <ArrowUpRight
-                          aria-hidden
-                          className="ml-auto size-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100"
-                        />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="flex items-baseline gap-2">
+                        <span className="font-medium group-hover:text-accent">{api.name}</span>
+                        <span className="font-mono text-[11px] text-muted">v{api.version}</span>
+                        {api.providerKeyIncluded && (
+                          <span className="badge-accent" title="OpenGate adds the provider's API key">
+                            <KeyRound aria-hidden className="size-3" /> Key included
+                          </span>
+                        )}
                       </span>
-                      <span className="text-xs text-muted">
-                        v{api.version}
-                        {api.provider && <> · by {api.provider}</>}
-                      </span>
-                    </div>
-                  </div>
-                  {api.description && (
-                    <p className="line-clamp-3 text-sm text-muted">{splitDocsLink(api.description).text}</p>
-                  )}
-                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                    <code className="font-mono text-xs text-muted">{api.context}</code>
-                    {api.tierCount > 0 && (
-                      <span className="badge ml-auto">
-                        <Layers aria-hidden className="size-3" />
-                        {api.tierCount} {api.tierCount === 1 ? "tier" : "tiers"}
-                      </span>
-                    )}
-                  </div>
+                      <span className="line-clamp-1 text-sm text-muted">{splitDocsLink(api.description).text}</span>
+                    </span>
+                  </span>
+                  <span className="hidden text-sm text-muted lg:block">{categoryLabel(api.tags)}</span>
+                  <code className="hidden truncate font-mono text-xs text-muted lg:block">{api.context}</code>
+                  <ChevronRight aria-hidden className="hidden size-4 text-border-strong transition-colors group-hover:text-foreground lg:block" />
                 </Link>
               </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
     </>
   );

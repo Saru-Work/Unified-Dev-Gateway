@@ -7,9 +7,9 @@ import { CopyButton } from "@/app/copy-button";
 import { AccessToken } from "./access-token";
 import type { ApplicationKey, GenerateKeyState, KeyType } from "@/lib/types";
 
-const LABELS: Record<KeyType, { label: string; hint: string; icon: typeof ShieldCheck; tone: string }> = {
-  PRODUCTION: { label: "Production", hint: "Calls the live backend", icon: ShieldCheck, tone: "tone-emerald" },
-  SANDBOX: { label: "Sandbox", hint: "Calls the sandbox backend, if the API has one", icon: FlaskConical, tone: "tone-amber" },
+const LABELS: Record<KeyType, { label: string; hint: string; icon: typeof ShieldCheck }> = {
+  PRODUCTION: { label: "Production", hint: "Calls the live backend", icon: ShieldCheck },
+  SANDBOX: { label: "Sandbox", hint: "Calls the sandbox backend, if the API has one", icon: FlaskConical },
 };
 
 /** Outcome of deleting keys: which ones went, or why it failed. */
@@ -74,8 +74,8 @@ export function KeyPanel({ applicationId, keyType, existing }: KeyPanelProps) {
   return (
     <div className="card flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <span className={`icon-tile ${LABELS[keyType].tone} size-9`}>
-          <EnvIcon aria-hidden className="size-4" />
+        <span className="icon-tile size-9">
+          <EnvIcon aria-hidden className="size-4" strokeWidth={1.6} />
         </span>
         <div className="flex flex-col">
           <h3 className="font-semibold">{LABELS[keyType].label}</h3>

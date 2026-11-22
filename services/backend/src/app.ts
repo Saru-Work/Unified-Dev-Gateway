@@ -20,6 +20,7 @@ import { createApplicationRouter } from "./routes/applicationRouter";
 import { createPolicyRouter } from "./routes/policyRouter";
 import { openApiDocument } from "./openapi";
 import { toOperations } from "./services/apiOperations";
+import type { IUsageRepository } from "./usage/UsageRepository";
 import { createErrorHandler } from "./errors/errorHandler";
 import { AppError } from "./errors/AppError";
 import { readinessHandler, type ReadinessCheck } from "./observability/readiness";
@@ -33,6 +34,8 @@ export interface AppDependencies {
   wso2: Wso2Transport;
   /** OpenGate's own WSO2 token, used for every call that acts in WSO2. */
   wso2Token: Wso2TokenSource;
+  /** Per-application usage, when the gateway's metrics log is collected. */
+  usage?: IUsageRepository;
   /** Where request and error logs go; JSON lines on stdout/stderr by default. */
   log?: Logger;
   /** Dependency checks behind GET /ready, e.g. { mongo, wso2 }. */
@@ -51,6 +54,7 @@ export function createApp(deps: AppDependencies) {
     applicationService,
     new SubscriptionService(wso2, applicationService),
     deps.wso2Token,
+    deps.usage,
   );
 
   const log = deps.log ?? jsonLogger;

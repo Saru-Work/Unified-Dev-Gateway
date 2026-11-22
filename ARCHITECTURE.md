@@ -137,6 +137,7 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 | `GET`  | `/applications/:id` | OpenGate JWT | `{ application }`. Another user's app or an unknown/malformed id → `404` |
 | `PATCH` | `/applications/:id` | OpenGate JWT | `{ name?, description?, throttlingPolicy? }` → `{ application }`. WSO2's update is a full `PUT`, so stored values (including the policy) are merged in and the token type is re-sent. WSO2 first; a refusal leaves the record unchanged. |
 | `DELETE` | `/applications/:id` | OpenGate JWT | `204`. Deletes in WSO2 first (a WSO2 `404` counts as already gone), then removes the record. Ownership is checked before WSO2 is called. |
+| `GET` | `/applications/:id/usage` | OpenGate JWT | `?range=24h\|7d\|30d` → `{ enabled: true, range, unit, from, to, totals: { calls, errors, throttled, errorRate, avgLatencyMs?, p95LatencyMs? }, series: [{ start, calls, errors }], apis, statuses, lastCallAt? }` (hourly buckets for 24h, daily for 7d/30d, UTC; empty buckets included). `{ enabled: false }` without `USAGE_METRICS_LOG`. Owner-checked like every application route. |
 | `GET` | `/applications/:id/keys` | OpenGate JWT | `{ keys: [...] }` from WSO2 `oauth-keys`. Secrets and access tokens are never included. |
 | `POST` | `/applications/:id/keys` | OpenGate JWT | `{ keyType: "PRODUCTION" \| "SANDBOX" }` → `201 { key }` with `consumerKey` **and `consumerSecret`**, the only time the secret is returned. Client-credentials grant, Resident Key Manager. Existing keys → WSO2's `409`. |
 | `DELETE` | `/applications/:id/keys/:keyMappingId` | OpenGate JWT | `204`. Checks the mapping is among the app's keys first (WSO2 answers `500` for unknown ones), so a missing one is `404`. WSO2 revokes the secret and every token issued from it. |
@@ -236,6 +237,24 @@ createdAt / updatedAt                  description        string  default ""
                                        createdAt / updatedAt
 ```
 
+`usageevents` (one per gateway call: `correlationId` unique,
+`wso2ApplicationId`, `apiId`, `apiName`, `resource`, `method`, `status`,
+`latencyMs`, `errorType`, `timestamp`; indexed by application and time, and
+deleted by a TTL index after 30 days) and `usagecursors` (how far the
+collector has read each log: file → inode and byte offset).
+
+**Usage pipeline** (`src/usage/`). WSO2's gateway, with `elk` analytics on,
+writes `apimMetrics: apim:response|apim:faulty, properties :{json}` lines to
+`apim_metrics.log` on a volume the backend mounts read-only.
+`MetricsLogCollector` polls it every 5 seconds, reads up to 1 MB at a time,
+consumes only complete lines, and saves its position; a new inode or a file
+shorter than the saved offset means rotation, so it starts over.
+`parseMetricLine` keeps calls that name an application (WSO2 reports
+`UNKNOWN` for calls rejected before authentication) and drops the caller's
+IP. Inserts are unordered and ignore duplicate correlation ids, so reading
+twice is harmless. Queries group by `$dateTrunc` bucket, API and status, take
+the p95 with `$percentile`, and `summarize` fills empty buckets and totals.
+
 The repositories turn malformed ObjectId strings into `null` ("not
 found") rather than letting Mongoose throw a `CastError`, which would
 otherwise come back as a 500.
@@ -328,12 +347,14 @@ has its own. A second, readable cookie, `opengate_theme` (`light`, `dark` or
 `<html data-theme>`, so the server renders the chosen theme with no flash.
 `app/ui/theme-switcher.tsx` sets both the attribute and the cookie.
 
-**UI.** Theme tokens (light by default, dark, and "system" via
-`prefers-color-scheme`) and the component classes (`card`, `button-*`,
-`badge*`, `icon-tile`, `tone-*`) live in `app/globals.css`. Icons come from
-`lucide-react`. Shared pieces are in `app/ui/` (page header, empty state,
-logo, API icon, theme switcher). `lib/categories.ts` maps WSO2 tags to an
-icon and colour; `lib/apis.ts` loads the catalog (the list plus each API's
+**UI.** A warm paper-and-ink look with hairline rules and one accent colour.
+Theme tokens (light by default, dark, and "system" via `prefers-color-scheme`)
+and the component classes (`display` serif headings, `eyebrow` mono labels,
+`card`, `button-*`, `badge*`, `icon-tile`, `method-*`, `code-block`,
+`prose-docs`) live in `app/globals.css`. Fonts are Instrument Sans, Instrument
+Serif and JetBrains Mono via `next/font`; icons come from `lucide-react`.
+Shared pieces are in `app/ui/` (page header, empty state, logo, API icon,
+site header, theme switcher). `lib/categories.ts` maps WSO2 tags to an icon; `lib/apis.ts` loads the catalog (the list plus each API's
 details, since WSO2's list leaves tags out).
 
 `proxy.ts` redirects requests without a session cookie to
@@ -345,11 +366,12 @@ before doing anything.
 | Route | What it does |
 |-------|--------------|
 | `/` | Public landing page: hero, the live list of API categories, features, steps |
+| `/docs` | Public user guide with a sticky table of contents; its troubleshooting table uses error codes observed from the gateway |
 | `/login`, `/register` | `(auth)` group: forms backed by `app/actions/auth.ts` |
 | `/dashboard` | Overview, where sign-in lands: counts (subscriptions and keys are read per app, in parallel), a getting-started checklist driven by that data, recent applications, one featured API per category |
 | `/applications` | The user's applications, newest first, filtered on the server with `?q=` (name, description, policy) |
 | `/applications/new` | Create. The throttling policy select is filled from `/throttling-policies/application` and hidden if that can't be loaded. |
-| `/applications/[id]` | Details; OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new or regenerated secret is held in client state only, so those actions deliberately don't revalidate. Regenerating asks for an inline confirmation first. |
+| `/applications/[id]` | Details; a Usage section (`?range=24h|7d|30d`: stat tiles, a single-series column chart with hover/focus tooltips and a table view, by-API and by-status tables); OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new or regenerated secret is held in client state only, so those actions deliberately don't revalidate. Regenerating asks for an inline confirmation first. |
 | `/applications/[id]/edit` | Rename, re-describe, or change the throttling policy |
 | `/apis` | The API catalog, filtered on the server with `?q=` and `?tag=` (category chips with counts) |
 | `/apis/[id]` | API details, a form to subscribe one of your apps on one of its tiers, an **Endpoints** section (one collapsible entry per operation: parameters, body fields, example responses, and a sample `curl` filled with example values against the first gateway URL), and the gateway URLs |
@@ -382,6 +404,43 @@ layout itself, such as the backend being unreachable.
   WSO2's key manager. The application `PUT` and unsubscribe haven't been run live yet.
 - New applications are created with `tokenType: "JWT"` and the chosen
   `throttlingPolicy` (default `"Unlimited"`).
+- **Provider keys.** APIs whose upstream needs a key use WSO2's *API Key*
+  endpoint security (`endpointConfig.endpoint_security.{production,sandbox}` with
+  `type: "apikey"`, `apiKeyIdentifier`, `apiKeyIdentifierType: HEADER |
+  QUERY_PARAMETER`, `apiKeyValue`). The gateway adds the key to each backend
+  call; WSO2 stores it encrypted and returns `apiKeyValue: ""` on reads, so every
+  `PUT` of such an API must send the key again or it's wiped. A header key
+  replaces any value the caller sent; a query key is appended after the
+  caller's. The developer's OAuth token isn't forwarded upstream. Verified
+  live on 4.7.0 with an echo service and NASA.
+- **Response redaction.** Some providers echo the key (NASA puts `api_key=` in
+  every link). `scripts/wso2-policies/opengateRedactQueryParams` is a custom
+  response policy that reuses WSO2's built-in regex masking mediator
+  (`PIIMaskingRegex`, whose own policy is limited to AI APIs) to mask the named
+  parameters in URLs and JSON fields. WSO2 4.7.0 has no JavaScript engine for
+  script mediators and no built-in "remove query parameter" policy, hence this
+  approach.
+- **Shared upstream limits.** `x-opengate.upstreamLimit` becomes a WSO2
+  *API-level* advanced throttling policy (`OpenGate<n>Per<Unit>`, created
+  through the Admin REST API), which counts calls from all applications
+  together, unlike subscription tiers. Exceeding it gives `429` with code
+  900800. Counting is asynchronous: a 3-per-minute limit let 4 calls through.
+- **Container start-up** (`wso2-config/wso2-start.sh`, the compose
+  entrypoint, before the image's own): turns on `elk` analytics; makes WSO2
+  rebuild its Solr search index when the index is empty but the database
+  isn't (listings would otherwise stay empty forever, as the "indexed up to"
+  time lives in the database), via a new `[indexing] re_indexing` number kept
+  with the index; and pins the `[encryption]` key, which the image otherwise
+  regenerates in every new container, breaking every secret encrypted before
+  (seen as `CryptoException` for NASA's provider key). The key comes from
+  `WSO2_ENCRYPTION_KEY`, else a file on the database volume. A `wso2am-init`
+  busybox service gives the new `solr` volume to WSO2's user, as the image has
+  no such directory to copy ownership from.
+- The seed script marks key-included APIs with additional properties:
+  `providerKey: managed` (displayed, so the DevPortal API and OpenGate's
+  `/apis/:id` show it), `upstreamLimit` (displayed, e.g. "900 requests per
+  hour, shared by all developers") and `providerKeyFingerprint` (hidden; a
+  SHA-256 prefix of the key settings, used to detect rotation).
 - `wso2-config/apis` and `wso2-config/sequences` are set aside for API
   definitions and mediation sequences, but they're empty and not mounted
   into the container yet.
@@ -392,6 +451,7 @@ layout itself, such as the backend being unreachable.
 
 | Area | Gap | Suggested direction |
 |------|-----|---------------------|
+| Provider keys | One provider key per API, shared by every developer. A shared limit protects the provider's quota, but one developer can still take all of it. Query-parameter keys are appended after a caller's own. | Fair-share limits per application; prefer header keys. |
 | WSO2 credentials | The backend acts as one WSO2 account (default `admin`, via the password grant), so all apps share it and names are unique across users. | Use a dedicated least-privilege WSO2 user. Consider per-user WSO2 subscribers if apps must be separated in WSO2 itself. |
 | Application lifecycle | Keys use the client-credentials grant only; no API keys. Regenerating a secret fails on WSO2 4.7.0; deleting the keys and generating new ones is the workaround, but it revokes existing tokens with no overlap. The automated tests use a fake WSO2. | Find why WSO2 4.7.0's key manager rejects the secret update. Configurable grant types. Automate an end-to-end test against the compose stack. |
 | Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token, so changing the password doesn't sign out other sessions. | Refresh token in an httpOnly cookie, rotated on each use. |
@@ -399,4 +459,4 @@ layout itself, such as the backend being unreachable.
 | `/apis` | Unauthenticated and sends no WSO2 token, so only public APIs show up. | Decide on visibility, then forward the right credentials. |
 | Dashboard | No session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the sessions row above. Add Playwright end-to-end tests. |
 | SDK | `packages/sdk` not implemented. | Generate it from `/openapi.json` (e.g. `openapi-typescript`), then use it in the dashboard instead of the hand-written types in `lib/types.ts`. |
-| Observability | JSON request logs with ids and a `/ready` check exist, but there are no metrics, and the request id isn't forwarded to WSO2 or from the dashboard. | Forward `X-Request-Id` end to end; add request metrics (e.g. Prometheus). |
+| Observability | JSON request logs with ids, `/ready`, and per-application usage from the gateway's analytics log. No metrics endpoint for the backend itself, and the request id isn't forwarded to WSO2 or from the dashboard. Usage is read from a file on a shared volume, which assumes one gateway node. | Forward `X-Request-Id` end to end; Prometheus metrics; with several gateway nodes, ship analytics to a collector instead of a shared file. |

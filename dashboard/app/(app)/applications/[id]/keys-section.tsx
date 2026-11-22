@@ -1,4 +1,3 @@
-import { KeyRound } from "lucide-react";
 import { backend, describeError } from "@/lib/backend";
 import { requireUser } from "@/lib/session";
 import type { ApplicationKey, KeyType } from "@/lib/types";
@@ -23,9 +22,7 @@ export async function KeysSection({ applicationId }: { applicationId: string }) 
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-          <KeyRound aria-hidden className="size-5 text-accent" /> OAuth keys
-        </h2>
+        <h2 className="display text-2xl">OAuth keys</h2>
         <p className="text-sm text-muted">
           Client-credentials keys for getting access tokens from WSO2.
         </p>

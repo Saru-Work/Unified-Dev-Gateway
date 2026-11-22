@@ -1,4 +1,4 @@
-import { AppWindow, CalendarClock, Gauge, Plus, Search, SearchX } from "lucide-react";
+import { AppWindow, ChevronRight, Plus, Search, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/app/ui/empty-state";
@@ -33,9 +33,9 @@ export default async function ApplicationsPage({
   return (
     <>
       <PageHeader
-        icon={AppWindow}
+        eyebrow="Workspace"
         title="Applications"
-        description="Each application has its own keys, access tokens and API subscriptions."
+        description="An application holds your keys and access tokens, and the APIs it's subscribed to."
         actions={
           <Link href="/applications/new" className="button-primary">
             <Plus aria-hidden className="size-4" /> New application
@@ -44,14 +44,14 @@ export default async function ApplicationsPage({
       />
 
       {all.length > 0 && (
-        <form role="search" className="relative max-w-xl">
+        <form role="search" className="relative max-w-lg">
           <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
-            className="field py-2.5 pl-9"
+            className="field pl-9"
             type="search"
             name="q"
             defaultValue={query}
-            placeholder="Search by name, description or policy"
+            placeholder="Search name, description or policy"
             aria-label="Search applications"
           />
         </form>
@@ -60,7 +60,7 @@ export default async function ApplicationsPage({
       {query && applications.length === 0 ? (
         <EmptyState
           icon={SearchX}
-          title={`No applications match “${query}”`}
+          title={`Nothing matches “${query}”`}
           action={<Link href="/applications" className="button-secondary">Show all applications</Link>}
         />
       ) : applications.length === 0 ? (
@@ -73,37 +73,35 @@ export default async function ApplicationsPage({
             </Link>
           }
         >
-          An application gets you keys and access tokens for calling the APIs in the catalog.
+          You need one to get keys and call the APIs in the catalog.{" "}
+          <Link href="/docs#applications" className="link">What&apos;s an application?</Link>
         </EmptyState>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {applications.map((app) => (
-            <li key={app.id}>
-              <Link href={`/applications/${app.id}`} className="card card-link flex h-full flex-col gap-4">
-                <div className="flex items-start gap-3">
-                  <span className="icon-tile tone-indigo size-11">
-                    <AppWindow aria-hidden className="size-5" />
+        <div className="flex flex-col gap-2">
+          <div className="hidden grid-cols-[minmax(0,1fr)_120px_190px_20px] gap-6 px-4 md:grid">
+            <span className="eyebrow">{applications.length} {applications.length === 1 ? "application" : "applications"}</span>
+            <span className="eyebrow">Policy</span>
+            <span className="eyebrow">Created</span>
+          </div>
+          <ul className="overflow-hidden rounded-lg border border-border bg-card">
+            {applications.map((app) => (
+              <li key={app.id} className="border-b border-border last:border-b-0">
+                <Link
+                  href={`/applications/${app.id}`}
+                  className="group grid items-center gap-x-6 gap-y-1 px-4 py-4 transition-colors hover:bg-surface/50 md:grid-cols-[minmax(0,1fr)_120px_190px_20px]"
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium group-hover:text-accent">{app.name}</span>
+                    <span className="line-clamp-1 text-sm text-muted">{app.description || "No description"}</span>
                   </span>
-                  <div className="flex min-w-0 flex-col">
-                    <span className="truncate font-semibold">{app.name}</span>
-                    <span className="line-clamp-2 text-sm text-muted">
-                      {app.description || "No description"}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted">
-                  <span className="inline-flex items-center gap-1.5">
-                    <CalendarClock aria-hidden className="size-3.5" />
-                    {formatDate(app.createdAt)}
-                  </span>
-                  <span className="badge-accent">
-                    <Gauge aria-hidden className="size-3" /> {app.throttlingPolicy}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  <span className="font-mono text-xs text-muted">{app.throttlingPolicy}</span>
+                  <span className="font-mono text-xs text-muted">{formatDate(app.createdAt)}</span>
+                  <ChevronRight aria-hidden className="hidden size-4 text-border-strong transition-colors group-hover:text-foreground md:block" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </>
   );

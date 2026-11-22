@@ -7,48 +7,53 @@ import {
   Gamepad2,
   GraduationCap,
   MapPin,
+  Orbit,
   Palette,
   PawPrint,
   Plug,
   Smile,
+  Telescope,
   Tv,
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 
-export interface Category {
-  icon: LucideIcon;
-  /** A .tone-* class from globals.css. */
-  tone: string;
-}
-
 // Most specific first: an API tagged "fun" and "animals" shows as animals.
-const BY_TAG: [string, Category][] = [
-  ["weather", { icon: CloudSun, tone: "tone-sky" }],
-  ["finance", { icon: Coins, tone: "tone-emerald" }],
-  ["calendar", { icon: CalendarDays, tone: "tone-rose" }],
-  ["food", { icon: UtensilsCrossed, tone: "tone-amber" }],
-  ["animals", { icon: PawPrint, tone: "tone-orange" }],
-  ["art", { icon: Palette, tone: "tone-fuchsia" }],
-  ["culture", { icon: Palette, tone: "tone-fuchsia" }],
-  ["tv", { icon: Tv, tone: "tone-violet" }],
-  ["entertainment", { icon: Tv, tone: "tone-violet" }],
-  ["games", { icon: Gamepad2, tone: "tone-violet" }],
-  ["education", { icon: GraduationCap, tone: "tone-indigo" }],
-  ["language", { icon: BookOpen, tone: "tone-indigo" }],
-  ["geo", { icon: MapPin, tone: "tone-teal" }],
-  ["testing", { icon: FlaskConical, tone: "tone-sky" }],
-  ["demo", { icon: FlaskConical, tone: "tone-sky" }],
-  ["fun", { icon: Smile, tone: "tone-orange" }],
-  ["reference", { icon: BookOpen, tone: "tone-slate" }],
+const BY_TAG: [string, LucideIcon][] = [
+  ["space", Orbit],
+  ["science", Telescope],
+  ["weather", CloudSun],
+  ["finance", Coins],
+  ["calendar", CalendarDays],
+  ["food", UtensilsCrossed],
+  ["animals", PawPrint],
+  ["art", Palette],
+  ["culture", Palette],
+  ["tv", Tv],
+  ["entertainment", Tv],
+  ["games", Gamepad2],
+  ["education", GraduationCap],
+  ["language", BookOpen],
+  ["geo", MapPin],
+  ["testing", FlaskConical],
+  ["demo", FlaskConical],
+  ["fun", Smile],
+  ["reference", BookOpen],
 ];
 
-const DEFAULT: Category = { icon: Plug, tone: "tone-indigo" };
+/** Icons by category, plus "default" for APIs with no recognised tag. */
+export const CATEGORY_ICONS: Record<string, LucideIcon> = { ...Object.fromEntries(BY_TAG), default: Plug };
 
-/** Icon and colour for an API, from its WSO2 tags. */
-export function categoryFor(tags: readonly string[] | undefined): Category {
+/** The category an API's icon comes from: its most specific recognised tag. */
+export function categoryKey(tags: readonly string[] | undefined): string {
   const lower = (tags ?? []).map((t) => t.toLowerCase());
-  return BY_TAG.find(([tag]) => lower.includes(tag))?.[1] ?? DEFAULT;
+  return BY_TAG.find(([tag]) => lower.includes(tag))?.[0] ?? "default";
+}
+
+/** The label for an API's category column: the tag its icon comes from. */
+export function categoryLabel(tags: readonly string[] | undefined): string {
+  const key = categoryKey(tags);
+  return key === "default" ? (tags?.[0] ? tagLabel(tags[0]) : "—") : tagLabel(key);
 }
 
 export function tagLabel(tag: string): string {

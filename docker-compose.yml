@@ -1,7 +1,25 @@
 services:
+  # One-shot: the image has no solr/ directory, so Docker creates its volume
+  # owned by root; hand it to WSO2's user (10001) before WSO2 starts.
+  wso2am-init:
+    image: busybox:1.37.0
+    command: ["chown", "10001:10001", "/solr"]
+    volumes:
+      - wso2am-470-solr:/solr
+
   wso2am:
     image: wso2/wso2am:4.7.0
     container_name: wso2am
+    # Turns on gateway analytics (see wso2-config/wso2-start.sh), then runs
+    # the image's usual entrypoint.
+    entrypoint: ["/bin/sh", "/opengate/wso2-start.sh"]
+    depends_on:
+      wso2am-init:
+        condition: service_completed_successfully
+    environment:
+      # Optional: pin WSO2's encryption key (64 hex characters). Otherwise one
+      # is kept on the database volume; see wso2-config/wso2-start.sh.
+      WSO2_ENCRYPTION_KEY: ${WSO2_ENCRYPTION_KEY:-}
     ports:
       - "9443:9443"
       - "8243:8243"
@@ -9,6 +27,11 @@ services:
     volumes:
       - wso2am-470-deployment:/home/wso2carbon/wso2am-4.7.0/repository/deployment/server
       - wso2am-470-database:/home/wso2carbon/wso2am-4.7.0/repository/database
+      - ./wso2-config/wso2-start.sh:/opengate/wso2-start.sh:ro
+      # Shared with the backend, which reads apim_metrics.log for usage.
+      - wso2am-470-logs:/home/wso2carbon/wso2am-4.7.0/repository/logs
+      # The API search index; see wso2-config/wso2-start.sh.
+      - wso2am-470-solr:/home/wso2carbon/wso2am-4.7.0/solr
     networks:
       - devgateway
     healthcheck:
@@ -49,11 +72,15 @@ services:
       WSO2_ALLOW_SELF_SIGNED: "true"
       MONGO_URI: mongodb://mongo:27017/opengate
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (32+ bytes) in .env}
+      # The gateway's analytics log, read for per-application usage.
+      USAGE_METRICS_LOG: /wso2-logs/apim_metrics.log
       # The WSO2 account OpenGate acts as. admin/admin is WSO2's out-of-the-box login.
       WSO2_USERNAME: ${WSO2_USERNAME:-admin}
       WSO2_PASSWORD: ${WSO2_PASSWORD:-admin}
       WSO2_CLIENT_ID: ${WSO2_CLIENT_ID:-}
       WSO2_CLIENT_SECRET: ${WSO2_CLIENT_SECRET:-}
+    volumes:
+      - wso2am-470-logs:/wso2-logs:ro
     networks:
       - devgateway
     depends_on:
@@ -96,3 +123,5 @@ volumes:
   mongo-data:
   wso2am-470-deployment:
   wso2am-470-database:
+  wso2am-470-logs:
+  wso2am-470-solr:

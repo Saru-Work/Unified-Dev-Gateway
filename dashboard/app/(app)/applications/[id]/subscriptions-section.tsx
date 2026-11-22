@@ -1,4 +1,3 @@
-import { Boxes, Layers } from "lucide-react";
 import Link from "next/link";
 import { backend, describeError } from "@/lib/backend";
 import { requireUser } from "@/lib/session";
@@ -22,9 +21,7 @@ export async function SubscriptionsSection({ applicationId }: { applicationId: s
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-          <Layers aria-hidden className="size-5 text-accent" /> Subscriptions
-        </h2>
+        <h2 className="display text-2xl">Subscriptions</h2>
         <p className="text-sm text-muted">
           APIs this application&apos;s keys can call.
         </p>
@@ -36,7 +33,7 @@ export async function SubscriptionsSection({ applicationId }: { applicationId: s
         <div className="card flex flex-wrap items-center justify-between gap-3 border-dashed text-sm">
           <span className="text-muted">Not subscribed to any APIs yet.</span>
           <Link href="/apis" className="button-secondary">
-            <Boxes aria-hidden className="size-4" /> Browse the catalog
+            Browse the catalog
           </Link>
         </div>
       ) : (

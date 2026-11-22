@@ -96,8 +96,7 @@ WSO2 data volumes.
 
 ### Sample APIs
 
-A fresh WSO2 has only its PizzaShack sample. To add 18 free public APIs that
-need no key of their own, run:
+A fresh WSO2 has only its PizzaShack sample. To add 19 public APIs, run:
 
 ```bash
 scripts/seed-public-apis.sh   # needs curl and jq; safe to re-run
@@ -123,6 +122,7 @@ scripts/seed-public-apis.sh   # needs curl and jq; safe to re-run
 | DogCEO | `/dogs/1.0.0` | `/breeds/image/random`, `/breed/hound/list` |
 | ChuckNorris | `/chucknorris/1.0.0` | `/jokes/random` |
 | Agify | `/agify/1.0.0` | `/?name=alex` |
+| NasaAsteroids (key included) | `/nasa/neo/1.0.0` | `/neo/browse?size=2`, `/feed?start_date=2026-11-20` |
 
 Each is published with the Bronze, Silver, Gold and Unlimited tiers. The
 gateway takes about 15 seconds to load new APIs, and answers `404` until
@@ -156,6 +156,60 @@ gateway context, the real backend URL and the tags.
 3. Run `scripts/seed-public-apis.sh` to upload it. Changing only the docs
    re-uploads the definition; adding or removing an endpoint also redeploys the
    API to the gateway.
+
+#### APIs that need a provider key
+
+Most valuable APIs need a key from their provider. OpenGate holds that key and
+the gateway adds it to every call, so developers only ever use their OpenGate
+token. Add a `providerKey` block to the file's `x-opengate`:
+
+```json
+"providerKey": {
+  "in": "header",
+  "name": "X-Api-Key",
+  "env": "NASA_API_KEY",
+  "fallback": "DEMO_KEY",
+  "redact": ["api_key"]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `in` | `header` or `query`: where the provider expects the key. Prefer `header`: the gateway's value replaces anything a caller sends, whereas a query key is appended after the caller's own. |
+| `name` | The header or query parameter name. |
+| `env` | The environment variable holding the key. The scripts also read the repo's `.env` (as data, never executed); real environment variables win. Keys never go in the API file. |
+| `fallback` | Optional: a provider's *public* demo key, used when `env` isn't set. |
+| `redact` | Optional: query parameter names whose values the gateway masks in responses (`api_key=*****`, and `"api_key":"*****"` in JSON), for providers that echo the key back. NASA does, in every link. |
+| `fallbackLimit` | Optional: the shared limit (see below) to use while `fallback` is in use, since demo keys allow far less. |
+
+**Shared limits.** Everyone using a key-included API shares the provider's
+quota, so one busy developer could use it up for all. `"upstreamLimit":
+{ "requests": 900, "per": "hour" }` in `x-opengate` (`per`: `min`, `hour` or
+`day`) caps the calls the gateway sends to the provider from all developers
+together. The seed script creates a WSO2 API-level policy named
+`OpenGate<n>Per<Unit>` and applies it; past the limit the gateway answers
+`429` (code 900800) for everyone until it resets. WSO2 counts asynchronously,
+so a call or two can get past the limit (verified: a limit of 3 per minute let
+4 through): set it a little below the provider's real quota. NASA's file uses
+900 an hour (NASA allows 1,000) and 25 an hour on `DEMO_KEY`.
+
+What the seed script does with it:
+
+- Stores the key in WSO2 as **API Key endpoint security** (encrypted; WSO2
+  never returns it, not even to the Publisher API).
+- Adds a visible `providerKey: managed` property, which the dashboard shows as
+  **Key included**, and a hidden fingerprint of the key settings, so a changed
+  key is detected and redeployed: change `.env`, re-run the script, done.
+- Installs and attaches the `opengateRedactQueryParams` response policy
+  (`scripts/wso2-policies/`) when `redact` is set.
+
+`record-examples.mjs` calls the provider with the key, masks it in recorded
+examples, and fails if a response contains the key and `redact` doesn't cover it.
+
+Everyone using a key-included API shares the provider's quota. NASA's
+`DEMO_KEY` allows only about 30 calls an hour per IP, so it's for trying things
+out; get a free key at https://api.nasa.gov and set `NASA_API_KEY` in `.env`.
+Check each provider's terms allow access through a gateway like this.
 
 ---
 
@@ -362,6 +416,11 @@ curl -s -X DELETE $API/applications/6ae985a7348dc636274f99de \
 Open http://localhost:3000. The dashboard calls the backend from the Next.js
 server, so your browser only ever talks to `:3000` and never sees a token.
 
+A user guide is built in at http://localhost:3000/docs (public, no sign-in
+needed): key ideas, a quick start, keys and tokens, calling APIs from curl,
+JavaScript, Python and Postman, and troubleshooting with the gateway's real
+error codes.
+
 Navigation is a sidebar (a slide-out menu on phones). The look is light by
 default; switch to dark, or to follow your device, from the sidebar or
 **Settings → Appearance**.
@@ -417,6 +476,27 @@ means the token is missing or expired: note that the consumer key or secret
 themselves are not tokens. A gateway `403` means the app isn't subscribed to
 that API.
 
+### 4.10 See an application's usage
+
+Each application's page has a **Usage** section: calls, error rate, throttled
+calls (`429`), p95 and average latency, a chart of calls per hour (24 hours)
+or per day (7 or 30 days), and breakdowns by API and by response status. The
+same data is at `GET /applications/:id/usage?range=24h|7d|30d`.
+
+How it's collected: `wso2-config/wso2-start.sh` turns on WSO2's `elk`
+analytics, so the gateway writes one JSON event per call to
+`repository/logs/apim_metrics.log`. That directory is the `wso2am-470-logs`
+volume, mounted read-only into the backend, which follows the file
+(`USAGE_METRICS_LOG`), ties each event to an application by WSO2's
+application id, and stores it in MongoDB for 30 days. Events are unique by
+correlation id, so re-reading the log never double-counts, and the read
+position survives restarts and log rotation. The caller's IP address isn't
+stored.
+
+Calls WSO2 rejects before it knows the application (no token, an invalid
+token, or a path the API doesn't have) can't be attributed and aren't
+counted. Throttled calls are. Numbers appear a few seconds after a call.
+
 ---
 
 ## 5. API reference
@@ -441,6 +521,7 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | `GET` | `/applications/:id` | `Authorization` | none | `200 {application}` |
 | `PATCH` | `/applications/:id` | `Authorization` | `{name?, description?, throttlingPolicy?}` | `200 {application}` |
 | `DELETE` | `/applications/:id` | `Authorization` | none | `204` |
+| `GET` | `/applications/:id/usage` | `Authorization` | `?range=24h\|7d\|30d` | `200 {enabled, totals, series, apis, statuses, lastCallAt}`, or `{enabled: false}` when usage isn't collected |
 | `GET` | `/applications/:id/keys` | `Authorization` | none | `200 {keys}` (no secrets) |
 | `POST` | `/applications/:id/keys` | `Authorization` | `{keyType: "PRODUCTION" \| "SANDBOX"}` | `201 {key}` incl. `consumerSecret`, shown once |
 | `DELETE` | `/applications/:id/keys/:keyMappingId` | `Authorization` | none | `204`; revokes the secret and its tokens. `404` if the app has no such keys |
@@ -519,6 +600,7 @@ add `ports: ["27017:27017"]` under `mongo`.
 | `WSO2_ALLOW_SELF_SIGNED` | no | `false` |
 | `WSO2_USERNAME`, `WSO2_PASSWORD` | yes | none (compose: `admin` / `admin`) |
 | `WSO2_CLIENT_ID`, `WSO2_CLIENT_SECRET` | no (both or neither) | none: an OAuth client is registered on first use |
+| `USAGE_METRICS_LOG` | no | none: usage is off. Compose sets `/wso2-logs/apim_metrics.log` |
 | `PORT` | no | `4000` |
 
 ### Dashboard
@@ -549,5 +631,7 @@ npm run dev      # http://localhost:3000
 | `502 OpenGate couldn't authenticate with WSO2` | The backend couldn't get its WSO2 token. Check `WSO2_USERNAME` / `WSO2_PASSWORD` and the backend log line *Failed to get a WSO2 token* ([§4.4](#44-how-opengate-talks-to-wso2)). |
 | WSO2 calls return `403` | OpenGate's WSO2 account lacks permission. Give it the `Internal/subscriber` role. |
 | **Regenerate secret** returns WSO2's `500` (`900967 General Error`) | WSO2 4.7.0's key manager rejects the secret update (its log shows *Error while generating new consumer secret … status code: 400*), even when called directly on WSO2. Until that's sorted, use **Delete keys** and generate new ones. |
+| `/apis` and WSO2's own portals list no APIs after recreating the WSO2 container | WSO2's search index was empty while its database still said "indexed". `wso2-config/wso2-start.sh` now detects an empty index and has WSO2 rebuild it (about 30 seconds); the index lives on the `wso2am-470-solr` volume. |
+| WSO2 logs *Error while decrypting … for API* | The data was encrypted with a different `[encryption]` key. WSO2's image generates a random key in every new container; `wso2-start.sh` keeps one key on the database volume (or use `WSO2_ENCRYPTION_KEY` in `.env`). Re-run `scripts/seed-public-apis.sh` to re-store provider keys if needed. |
 | `/apis` returns an empty list | No APIs are published (or none are public) in WSO2 yet. |
 | Dashboard says "Something went wrong" | The dashboard can't reach the backend. Check `docker compose ps` and that `BACKEND_URL` points at it (compose: `http://backend:4000`). |

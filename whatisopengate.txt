@@ -1,0 +1,250 @@
+WHAT IS OPENGATE?
+=================
+
+OpenGate is a self-service developer portal that sits in front of WSO2 API
+Manager.
+
+An organisation publishes its APIs in WSO2. WSO2 is very good at running
+them: it secures every call, enforces rate limits, and can cut off access
+at any time. What WSO2 doesn't make easy is the developer's side of things:
+finding out which APIs exist, understanding how to call them, and getting
+working credentials without help from someone on the platform team.
+
+OpenGate fills that gap. Developers sign up with an email and a password,
+browse a documented catalog of APIs, create "applications", subscribe them
+to APIs, and get keys and access tokens in a few clicks. Behind the scenes
+OpenGate does all the WSO2 work for them, using its own service account,
+so developers never need a WSO2 login or have to deal with OAuth endpoints.
+
+In short:
+
+  WSO2 API Manager  = the engine (security, rate limits, the gateway)
+  OpenGate          = the front door (catalog, docs, self-service access)
+
+
+THE PROBLEM IT SOLVES
+---------------------
+
+Without a portal like OpenGate, getting access to an internal or partner
+API usually looks like this:
+
+  - A developer asks around to find out which APIs exist.
+  - They file a ticket to get access.
+  - Someone on the platform team creates credentials by hand in WSO2.
+  - The credentials are sent over chat or email.
+  - The developer works out the token endpoint, the scopes and the URL
+    format by trial and error, and gets "401 Invalid Credentials" a lot.
+
+That is slow for developers, repetitive for the platform team, and risky
+(credentials end up in chat histories). OpenGate turns it into a
+self-service flow that takes minutes, while every rule about who may call
+what, and how often, is still enforced by WSO2.
+
+
+WHAT YOU CAN DO WITH IT
+-----------------------
+
+For developers (the people calling APIs):
+
+  - Browse a catalog of every published API, searchable and grouped into
+    categories (weather, finance, geography, reference and so on).
+  - Read each API's documentation: every endpoint, its parameters (which
+    are required, their types, allowed values, defaults and examples),
+    request bodies, and real example responses.
+  - Copy a ready-to-run "Try it" command for any endpoint.
+  - Create applications (one per project or environment) and choose a
+    throttling policy for each.
+  - Subscribe an application to an API on a usage tier (Bronze, Silver,
+    Gold or Unlimited).
+  - Generate production and sandbox keys (consumer key and secret).
+  - Get an access token in one click, without calling WSO2's token
+    endpoint by hand.
+  - Delete keys and generate new ones if a secret is lost or leaked.
+  - See an overview of their applications, subscriptions and keys, with a
+    checklist of next steps.
+  - See each application's usage: calls over time, error rate, throttled
+    calls, latency, and a breakdown by API and response status.
+  - Read a built-in user guide (/docs) with examples in curl, JavaScript,
+    Python and Postman, plus a troubleshooting table of real error codes.
+  - Do all of the above from scripts or CI through OpenGate's REST API,
+    which is described in OpenAPI at /openapi.json.
+
+For the organisation (the people running APIs):
+
+  - Give developers self-service access without giving them WSO2 accounts.
+  - Keep WSO2 in charge of security: tokens, subscriptions, rate limits and
+    revocation all still happen in WSO2.
+  - Keep each developer's work separate: everyone sees and manages only
+    their own applications.
+  - Publish documentation once, in each API's OpenAPI definition, and have
+    it appear in the portal automatically.
+  - Offer APIs that normally need a provider key without developers ever
+    getting one: OpenGate holds the provider's key, the gateway adds it to
+    each call, and masks it if the provider echoes it back. Developers just
+    see "Key included" and use their OpenGate token.
+  - Seed the catalog from files in the repository (scripts/public-apis/),
+    with a script that checks every documented endpoint against the real
+    API and records real example responses.
+
+
+WHO IT'S FOR
+------------
+
+  Platform / API teams   Run OpenGate and WSO2, publish APIs, set tiers.
+  API owners             Describe their APIs (OpenAPI) so they're usable.
+  Developers             Internal teams, partners or external developers
+                         who need to call the APIs.
+  Automation             CI pipelines and scripts that need credentials for
+                         services, through OpenGate's REST API.
+
+
+HOW AN ORGANISATION USES IT, END TO END
+---------------------------------------
+
+STAGE 1: Set it up (platform team, once)
+
+  1. Run the stack: WSO2 API Manager, MongoDB, the OpenGate backend and the
+     OpenGate dashboard. Locally this is one command:
+       docker compose up --build -d
+  2. Set the secrets in .env:
+       JWT_SECRET       signs OpenGate's own sessions (32+ bytes)
+       WSO2_USERNAME /  the WSO2 account OpenGate acts as. Use a dedicated
+       WSO2_PASSWORD    WSO2 user, not admin, for anything shared.
+  3. Optionally, register an OAuth client in WSO2 yourself and set
+     WSO2_CLIENT_ID and WSO2_CLIENT_SECRET. Otherwise OpenGate registers
+     one automatically the first time it needs WSO2.
+  4. Check it's healthy: GET /ready reports whether MongoDB and WSO2 are
+     reachable.
+
+STAGE 2: Publish APIs (API owners)
+
+  Either in the WSO2 Publisher:
+  5. Create the API (import an OpenAPI file, or start from scratch with a
+     name, context, version and the real backend URL).
+  6. Describe its endpoints: summaries, parameters, request bodies and
+     examples. This is exactly what developers will see in OpenGate.
+  7. Choose the subscription tiers it offers, deploy a revision to the
+     gateway, and publish it with public visibility.
+
+  Or from the repository:
+  5. Add an OpenAPI file to scripts/public-apis/.
+  6. Run: node scripts/record-examples.mjs <file>
+     It calls the real API, checks every documented endpoint and parameter,
+     and saves real responses as examples.
+  7. Run: scripts/seed-public-apis.sh
+     It creates the API in WSO2, uploads its documentation, deploys it and
+     publishes it.
+
+  Either way, the API appears in OpenGate's catalog straight away (the
+  gateway takes about 15 seconds to start serving a newly published API).
+
+STAGE 3: Onboard developers
+
+  8. Share the OpenGate address and the documentation page (/docs).
+  9. Each developer creates their own account. No WSO2 account, ticket or
+     manual credential hand-over is needed.
+
+STAGE 4: Developers build (day to day)
+
+  10. Find an API in the catalog and read its endpoints.
+  11. Create an application for their project.
+  12. Subscribe the application to the API on a tier.
+  13. Generate production keys and store the consumer secret safely.
+  14. Get an access token (one hour) and call the API through the WSO2
+      gateway:
+        https://<gateway>/<context>/<version>/<path>
+        Authorization: Bearer <access token>
+  15. In production code, fetch tokens automatically with the
+      client-credentials grant and refresh them when they expire.
+
+STAGE 5: Operate and govern (ongoing)
+
+  - Rate limits: each subscription's tier and each application's policy are
+    enforced by the gateway; calls over the limit are rejected with 429.
+  - Revoking access: a developer can delete keys (which also invalidates
+    their tokens) or delete an application; the platform team can still
+    block subscriptions or applications in WSO2 directly.
+  - Ownership: OpenGate records which developer owns each application and
+    checks it before every action.
+  - Monitoring: the backend writes one JSON log line per request with a
+    request id, and /ready supports health checks and load balancers.
+  - Changing an API: update its definition and redeploy; OpenGate shows the
+    new documentation automatically.
+
+
+EXAMPLE SCENARIOS
+-----------------
+
+  Internal API catalogue
+    A company with dozens of microservices publishes them in WSO2. Teams use
+    OpenGate to discover each other's APIs and get access themselves,
+    instead of asking in chat and waiting for a ticket.
+
+  Partner onboarding
+    A logistics company exposes its "Orders" and "Tracking" APIs to
+    partners. A partner signs up, subscribes to the APIs on the Silver tier,
+    and is making calls the same day, while WSO2 enforces the partner's
+    limits.
+
+  Tiered access
+    Free users subscribe on Bronze (1,000 requests a minute); paying
+    customers are moved to Gold (5,000 a minute). The tier is chosen per
+    subscription and enforced by the gateway.
+
+  CI and service credentials
+    A deployment pipeline uses OpenGate's REST API to create an application,
+    subscribe it, and fetch keys for a new service, with no clicking and no
+    shared admin credentials.
+
+  Teaching and demos
+    With the 19 sample APIs seeded in (one with a provider key included), OpenGate shows the whole
+    API-management lifecycle (publish, discover, subscribe, get keys, get a
+    token, call through the gateway) in a few minutes.
+
+
+WHY IT'S SAFE TO PUT IN FRONT OF DEVELOPERS
+-------------------------------------------
+
+  - Developers never get WSO2 credentials; only OpenGate's backend holds a
+    WSO2 login, and it's kept in server configuration.
+  - Consumer secrets are shown once and never stored or logged by OpenGate.
+  - Passwords are stored as argon2 hashes; sign-in, sign-up and password
+    changes are rate-limited.
+  - Developers can only see and change their own applications. Someone
+    else's application looks the same as one that doesn't exist.
+  - Every API call still goes through WSO2's gateway, which checks the
+    token, the subscription and the rate limit on every request.
+
+
+WHAT IT DOESN'T DO YET
+----------------------
+
+  - Provider quotas are shared: a shared limit protects the provider, but
+    one busy developer can still use it all; there's no fair share yet.
+
+These matter before opening OpenGate to the public internet:
+
+  - No organisations or roles: anyone who can reach it can sign up, and
+    there's no admin view or email verification.
+  - One shared WSO2 account owns every application, so application names
+    must be unique across all developers.
+  - Only public APIs are listed; there are no private or per-team APIs.
+  - Sessions last 15 minutes with no "stay signed in".
+  - "Regenerate secret" fails on WSO2 4.7.0 itself; deleting the keys and
+    generating new ones is the workaround.
+  - The dashboard container runs in development mode; a production build
+    and deployment setup are still to do.
+
+The most valuable next steps would be: a dedicated least-privilege WSO2
+account, organisations and roles, usage analytics per application, and
+session refresh.
+
+
+WHERE TO READ MORE
+------------------
+
+  /docs (in the app)  The user guide: quick start, keys and tokens, calling
+                      APIs, troubleshooting.
+  README.md           Setting it up and using it, step by step.
+  ARCHITECTURE.md     How it's built, the data model, and planned work.
+  /openapi.json       The OpenGate REST API, for scripts and clients.

@@ -45,6 +45,8 @@ export interface Wso2Api {
 export interface Wso2ApiDetail extends Wso2Api {
   tags?: string[];
   transport?: string[];
+  /** Custom properties shown to developers, e.g. providerKey = "managed". */
+  additionalProperties?: { name: string; value: string }[];
   /** Subscription throttling tiers this API offers. */
   tiers?: { tierName: string; tierPlan?: string }[];
   endpointURLs?: {
@@ -124,3 +126,26 @@ export interface ApiOperation {
   };
   responses: { status: string; description?: string; example?: unknown }[];
 }
+
+/** An application's calls through the gateway, from GET /applications/:id/usage. */
+export type ApplicationUsage =
+  | { enabled: false }
+  | {
+      enabled: true;
+      range: "24h" | "7d" | "30d";
+      unit: "hour" | "day";
+      from: string;
+      to: string;
+      totals: {
+        calls: number;
+        errors: number;
+        throttled: number;
+        errorRate: number;
+        avgLatencyMs?: number;
+        p95LatencyMs?: number;
+      };
+      series: { start: string; calls: number; errors: number }[];
+      apis: { apiId: string; apiName: string; calls: number; errors: number; avgLatencyMs?: number }[];
+      statuses: { status: number; calls: number }[];
+      lastCallAt?: string;
+    };

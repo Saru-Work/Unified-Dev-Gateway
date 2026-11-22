@@ -37,7 +37,7 @@ export function MobileNav({ children }: { children: React.ReactNode }) {
           >
             <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
             <div
-              className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-border bg-card"
+              className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-border bg-background"
               onClick={(e) => {
                 if ((e.target as HTMLElement).closest("a")) setOpen(false);
               }}

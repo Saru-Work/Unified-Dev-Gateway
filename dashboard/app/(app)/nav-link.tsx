@@ -20,10 +20,10 @@ export function NavLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors [&>svg]:size-4.5 " +
+        "relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors [&>svg]:size-4 " +
         (active
-          ? "bg-accent-soft text-accent"
-          : "text-muted hover:bg-surface hover:text-foreground")
+          ? "bg-surface font-medium text-foreground before:absolute before:-left-3 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-accent"
+          : "text-muted hover:text-foreground")
       }
     >
       {icon}

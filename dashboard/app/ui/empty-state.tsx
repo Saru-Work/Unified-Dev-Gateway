@@ -12,11 +12,9 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="card flex flex-col items-center gap-3 border-dashed px-6 py-12 text-center">
-      <span className="icon-tile size-12">
-        <Icon aria-hidden className="size-6" />
-      </span>
-      <p className="font-semibold">{title}</p>
+    <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border-strong px-6 py-10">
+      <Icon aria-hidden className="size-5 text-muted" strokeWidth={1.5} />
+      <p className="font-medium">{title}</p>
       {children && <div className="max-w-md text-sm text-muted">{children}</div>}
       {action}
     </div>

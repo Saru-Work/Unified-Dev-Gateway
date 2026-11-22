@@ -1,175 +1,145 @@
-import {
-  ArrowRight,
-  Boxes,
-  Gauge,
-  KeyRound,
-  LayoutDashboard,
-  ListTree,
-  ShieldCheck,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { ApiIcon } from "@/app/ui/api-icon";
-import { Logo } from "@/app/ui/logo";
-import { listCatalog, type CatalogApi } from "@/lib/apis";
-import { tagLabel } from "@/lib/categories";
+import { SiteHeader } from "@/app/ui/site-header";
+import { listCatalog, splitDocsLink, type CatalogApi } from "@/lib/apis";
+import { categoryLabel } from "@/lib/categories";
 import { SESSION_COOKIE } from "@/lib/session";
 
-const FEATURES = [
-  { icon: Boxes, title: "One catalog", text: "Every public API in WSO2 API Manager, searchable and grouped by category." },
-  { icon: ListTree, title: "Real docs", text: "Endpoints, parameters and example responses for each API, with a ready-to-run curl." },
-  { icon: KeyRound, title: "Keys in a click", text: "Generate consumer keys and access tokens without touching OAuth endpoints." },
-  { icon: Gauge, title: "Usage tiers", text: "Subscribe on Bronze, Silver, Gold or Unlimited, enforced by the gateway." },
-  { icon: ShieldCheck, title: "Your apps only", text: "Every developer sees and manages only the applications they own." },
-  { icon: Zap, title: "One gateway", text: "Call everything through WSO2's gateway with a single bearer token." },
-];
-
 const STEPS = [
-  { title: "Create an account", text: "Just an email and a password." },
-  { title: "Create an application", text: "It holds your keys and subscriptions." },
-  { title: "Subscribe to APIs", text: "Pick APIs from the catalog and a tier." },
-  { title: "Get a token and call", text: "One click for a token, then curl away." },
+  { title: "Sign up", text: "An email and a password. No WSO2 account needed." },
+  { title: "Create an application", text: "It holds your keys and the APIs you subscribe to." },
+  { title: "Subscribe", text: "Pick an API from the catalog and a usage tier." },
+  { title: "Call it", text: "Get an access token in one click and send it to the gateway." },
 ];
 
-const SAMPLE = `$ curl https://gateway/weather/1.0.0/forecast \\
-    ?latitude=51.5&longitude=-0.12&current_weather=true \\
-    -H "Authorization: Bearer eyJ4NXQi…"
+const POINTS = [
+  {
+    label: "Documented",
+    text: "Each API lists its endpoints, parameters and example responses, with a curl you can paste.",
+  },
+  {
+    label: "Self-service",
+    text: "Keys, access tokens and subscriptions without a ticket, and without touching OAuth endpoints.",
+  },
+  {
+    label: "Governed",
+    text: "Everything still runs through WSO2 API Manager: its gateway, its tiers, its revocation.",
+  },
+];
 
-{
-  "current_weather": {
-    "temperature": 8.4,
-    "windspeed": 14.2,
-    "weathercode": 3
-  }
-}`;
+const SAMPLE = `curl "https://<gateway>/weather/1.0.0/forecast?latitude=51.5&longitude=-0.12" \\
+  -H "Authorization: Bearer <access token>"
+
+{ "latitude": 51.49, "longitude": -0.13, "current_weather": { … } }`;
 
 export default async function Home() {
   const signedIn = (await cookies()).has(SESSION_COOKIE);
   const catalog = await listCatalog().catch(() => [] as CatalogApi[]);
-  const categories = [...new Set(catalog.flatMap((api) => api.tags))].sort();
+  const preview = catalog.slice(0, 6);
+  const primary = signedIn
+    ? { href: "/dashboard", label: "Open your workspace" }
+    : { href: "/register", label: "Create an account" };
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
-        <Logo />
-        <nav className="flex items-center gap-2">
-          {signedIn ? (
-            <Link href="/dashboard" className="button-primary">
-              <LayoutDashboard aria-hidden className="size-4" /> Open dashboard
-            </Link>
-          ) : (
-            <>
-              <Link href="/login" className="button-ghost">Sign in</Link>
-              <Link href="/register" className="button-primary">Get started</Link>
-            </>
-          )}
-        </nav>
-      </header>
+      <SiteHeader />
 
       <main className="flex flex-1 flex-col">
-        <section className="hero-bg">
-          <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-24">
-            <div className="flex flex-col items-start gap-6">
-              <span className="badge-accent">
-                <Zap aria-hidden className="size-3.5" /> {catalog.length || "Many"} APIs, one gateway
-              </span>
-              <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-                The developer portal for your{" "}
-                <span className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 bg-clip-text text-transparent">
-                  WSO2 APIs
-                </span>
-              </h1>
-              <p className="max-w-xl text-lg text-muted">
-                Browse documented APIs, create applications, and get working access tokens in
-                minutes, without wrestling with OAuth endpoints.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link href={signedIn ? "/dashboard" : "/register"} className="button-primary px-5 py-2.5">
-                  {signedIn ? "Go to your dashboard" : "Create a free account"}
-                  <ArrowRight aria-hidden className="size-4" />
-                </Link>
-                <Link href="/apis" className="button-secondary px-5 py-2.5">
-                  <Boxes aria-hidden className="size-4" /> Explore the catalog
-                </Link>
-              </div>
+        <section className="mx-auto grid w-full max-w-6xl gap-12 px-4 pb-16 pt-16 sm:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:pt-24">
+          <div className="flex flex-col items-start gap-7">
+            <span className="eyebrow">Developer portal for WSO2 API Manager</span>
+            <h1 className="display text-6xl sm:text-7xl">
+              A front door
+              <br />
+              for your <em className="text-accent">APIs</em>.
+            </h1>
+            <p className="max-w-lg text-lg text-muted">
+              OpenGate gives developers one place to find your APIs, read how they work, and get
+              credentials to call them, while WSO2 keeps doing the enforcing.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href={primary.href} className="button-primary px-4 py-2.5">
+                {primary.label} <ArrowRight aria-hidden className="size-4" />
+              </Link>
+              <Link href="/docs" className="button-secondary px-4 py-2.5">
+                Read the docs
+              </Link>
             </div>
+          </div>
 
-            <div className="card overflow-hidden p-0 shadow-xl">
-              <div className="flex items-center gap-1.5 border-b border-border px-4 py-3">
-                <span className="size-3 rounded-full bg-rose-400" />
-                <span className="size-3 rounded-full bg-amber-400" />
-                <span className="size-3 rounded-full bg-emerald-400" />
-                <span className="ml-3 text-xs text-muted">Calling an API through the gateway</span>
-              </div>
-              <pre className="overflow-x-auto p-5 font-mono text-xs leading-relaxed sm:text-sm">{SAMPLE}</pre>
-            </div>
+          <div className="flex flex-col justify-end gap-3">
+            <span className="eyebrow">What a call looks like</span>
+            <pre className="code-block whitespace-pre-wrap p-5 text-[13px] [overflow-wrap:anywhere]">{SAMPLE}</pre>
+            <p className="text-xs text-muted">
+              Every API is called through the gateway with a bearer token from one of your
+              applications.
+            </p>
           </div>
         </section>
 
-        {catalog.length > 0 && (
-          <section className="border-y border-border bg-card">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-8 sm:px-6">
-              <p className="text-sm font-medium text-muted">Ready-to-use APIs across {categories.length} categories</p>
-              <ul className="flex flex-wrap gap-3">
-                {categories.map((tag) => (
-                  <li key={tag} className="badge gap-2 py-1 pl-1 pr-3 text-sm">
-                    <ApiIcon tags={[tag]} size="sm" />
-                    {tagLabel(tag)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-        )}
-
-        <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-16 sm:px-6">
-          <div className="flex max-w-2xl flex-col gap-2">
-            <h2 className="text-3xl font-semibold tracking-tight">Everything you need to ship an integration</h2>
-            <p className="text-muted">OpenGate sits in front of WSO2 API Manager and keeps the hard parts out of your way.</p>
-          </div>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map(({ icon: Icon, title, text }) => (
-              <li key={title} className="card flex flex-col gap-3">
-                <span className="icon-tile size-11">
-                  <Icon aria-hidden className="size-5" />
-                </span>
-                <h3 className="font-semibold">{title}</h3>
-                <p className="text-sm text-muted">{text}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-20 sm:px-6">
-          <h2 className="text-3xl font-semibold tracking-tight">From zero to first call in four steps</h2>
-          <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="border-y border-border bg-card">
+          <ol className="mx-auto grid w-full max-w-6xl sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, i) => (
-              <li key={step.title} className="card flex flex-col gap-2">
-                <span className="inline-flex size-8 items-center justify-center rounded-full bg-accent text-sm font-semibold text-[var(--accent-foreground)]">
-                  {i + 1}
-                </span>
-                <h3 className="font-semibold">{step.title}</h3>
+              <li
+                key={step.title}
+                className="flex flex-col gap-2 border-border px-4 py-8 sm:px-8 [&:not(:first-child)]:border-t sm:[&:nth-child(2)]:border-t-0 sm:[&:nth-child(even)]:border-l lg:border-t-0 lg:[&:not(:first-child)]:border-l lg:[&:not(:first-child)]:border-t-0"
+              >
+                <span className="font-mono text-xs text-accent">0{i + 1}</span>
+                <h2 className="text-lg font-medium">{step.title}</h2>
                 <p className="text-sm text-muted">{step.text}</p>
               </li>
             ))}
           </ol>
-          <div className="hero-bg card flex flex-wrap items-center justify-between gap-4 p-8">
-            <div>
-              <h2 className="text-xl font-semibold">Ready to build?</h2>
-              <p className="text-sm text-muted">It takes a minute to set up an account.</p>
-            </div>
-            <Link href={signedIn ? "/dashboard" : "/register"} className="button-primary px-5 py-2.5">
-              {signedIn ? "Open dashboard" : "Get started"} <ArrowRight aria-hidden className="size-4" />
-            </Link>
+        </section>
+
+        <section className="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <div className="flex flex-col gap-8">
+            <h2 className="display text-4xl sm:text-5xl">Less ceremony between a developer and a working call.</h2>
+            <dl className="flex flex-col gap-6">
+              {POINTS.map((p) => (
+                <div key={p.label} className="grid gap-1 border-t border-border pt-4 sm:grid-cols-[130px_1fr] sm:gap-6">
+                  <dt className="eyebrow pt-1">{p.label}</dt>
+                  <dd className="text-[15px] text-muted">{p.text}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
+
+          {preview.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-baseline justify-between">
+                <span className="eyebrow">In the catalog now</span>
+                <span className="font-mono text-xs text-muted">{catalog.length} APIs</span>
+              </div>
+              <ul className="overflow-hidden rounded-lg border border-border bg-card">
+                {preview.map((api) => (
+                  <li key={api.id} className="flex items-center gap-4 border-b border-border px-4 py-3.5 last:border-b-0">
+                    <ApiIcon tags={api.tags} size="sm" />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-sm font-medium">{api.name}</span>
+                      <span className="truncate text-xs text-muted">{splitDocsLink(api.description).text}</span>
+                    </span>
+                    <span className="hidden text-xs text-muted sm:inline">{categoryLabel(api.tags)}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/apis" className="inline-flex items-center gap-1 self-start text-sm text-accent hover:underline">
+                Browse all of them <ArrowUpRight aria-hidden className="size-3.5" />
+              </Link>
+            </div>
+          )}
         </section>
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-muted sm:px-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-muted sm:px-8">
           <span>OpenGate · a developer gateway for WSO2 API Manager</span>
-          <span>Example output is illustrative.</span>
+          <nav className="flex gap-4">
+            <Link href="/docs" className="hover:text-foreground">Documentation</Link>
+            <Link href="/docs#troubleshooting" className="hover:text-foreground">Troubleshooting</Link>
+          </nav>
         </div>
       </footer>
     </div>

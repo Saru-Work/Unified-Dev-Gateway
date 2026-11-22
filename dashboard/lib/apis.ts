@@ -8,7 +8,25 @@ export function splitDocsLink(description: string | null | undefined): { text: s
   return match ? { text: match[1], docs: match[2] } : { text: description ?? "" };
 }
 
-export type CatalogApi = Wso2Api & { tags: string[]; tierCount: number };
+export type CatalogApi = Wso2Api & {
+  tags: string[];
+  tierCount: number;
+  /** OpenGate adds the upstream provider's key, so developers don't need one. */
+  providerKeyIncluded: boolean;
+};
+
+/** A custom property's value, e.g. "upstreamLimit" (set by the seed script). */
+export function apiProperty(
+  api: Pick<Wso2ApiDetail, "additionalProperties"> | undefined,
+  name: string,
+): string | undefined {
+  return api?.additionalProperties?.find((p) => p.name === name)?.value;
+}
+
+/** Whether the gateway adds the upstream provider's key (set by the seed script). */
+export function providerKeyIncluded(api: Pick<Wso2ApiDetail, "additionalProperties"> | undefined): boolean {
+  return Boolean(api?.additionalProperties?.some((p) => p.name === "providerKey" && p.value === "managed"));
+}
 
 /**
  * Every public API with its tags. WSO2's list leaves tags out, so each API's
@@ -26,6 +44,7 @@ export const listCatalog = cache(async (): Promise<CatalogApi[]> => {
       ...api,
       tags: details[i]?.tags ?? [],
       tierCount: details[i]?.tiers?.length ?? 0,
+      providerKeyIncluded: providerKeyIncluded(details[i]),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 });

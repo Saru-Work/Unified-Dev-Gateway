@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Pencil } from "lucide-react";
 import { updateApplication } from "@/app/actions/applications";
 import { getApplication } from "@/lib/applications";
 import { getApplicationPolicies } from "@/lib/policies";
@@ -24,7 +23,7 @@ export default async function EditApplicationPage({
 
   return (
     <>
-      <PageHeader back={{ href: detailHref, label: application.name }} icon={Pencil} title="Edit application" />
+      <PageHeader back={{ href: detailHref, label: application.name }} eyebrow="Applications" title="Edit application" />
       <div className="card max-w-2xl">
       <ApplicationForm
         action={updateApplication.bind(null, application.id)}
