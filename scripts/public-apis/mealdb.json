@@ -1,0 +1,253 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "TheMealDB",
+    "version": "1.0.0",
+    "description": "Recipes with ingredients, instructions and photos. Uses TheMealDB's public test key, meant for development and education. Docs: https://www.themealdb.com/api.php"
+  },
+  "x-opengate": {
+    "context": "/meals",
+    "backend": "https://www.themealdb.com/api/json/v1/1",
+    "tags": [
+      "food"
+    ]
+  },
+  "paths": {
+    "/search.php": {
+      "get": {
+        "summary": "Search meals by name",
+        "parameters": [
+          {
+            "name": "s",
+            "in": "query",
+            "required": true,
+            "description": "Part of the meal's name.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "arrabiata"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching meals with full recipes; meals is null if none match",
+            "content": {
+              "application/json": {
+                "example": {
+                  "meals": [
+                    {
+                      "idMeal": "52771",
+                      "strMeal": "Spicy Arrabiata Penne",
+                      "strMealAlternate": null,
+                      "strCategory": "Vegetarian",
+                      "strArea": "Italian",
+                      "strCountry": "Italy",
+                      "strInstructions": "Bring a large pot of water to a boil. Add kosher salt to the boiling water, then add the pasta. Cook according to the package instructions, about 9 minutes.\r\nIn…",
+                      "strMealThumb": "https://www.themealdb.com/images/media/meals/ustsqw1468250014.jpg",
+                      "strTags": "Pasta,Curry",
+                      "strYoutube": "https://www.youtube.com/watch?v=1IszT_guI08",
+                      "strIngredient1": "penne rigate",
+                      "strIngredient2": "olive oil",
+                      "strIngredient3": "garlic",
+                      "strIngredient4": "chopped tomatoes",
+                      "strIngredient5": "red chilli flakes",
+                      "strIngredient6": "italian seasoning",
+                      "strIngredient7": "basil",
+                      "strIngredient8": "Parmigiano-Reggiano",
+                      "strIngredient9": "",
+                      "strIngredient10": ""
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lookup.php": {
+      "get": {
+        "summary": "Get a meal by ID",
+        "parameters": [
+          {
+            "name": "i",
+            "in": "query",
+            "required": true,
+            "description": "Meal ID.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 52771
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The meal with its recipe",
+            "content": {
+              "application/json": {
+                "example": {
+                  "meals": [
+                    {
+                      "idMeal": "52771",
+                      "strMeal": "Spicy Arrabiata Penne",
+                      "strMealAlternate": null,
+                      "strCategory": "Vegetarian",
+                      "strArea": "Italian",
+                      "strCountry": "Italy",
+                      "strInstructions": "Bring a large pot of water to a boil. Add kosher salt to the boiling water, then add the pasta. Cook according to the package instructions, about 9 minutes.\r\nIn…",
+                      "strMealThumb": "https://www.themealdb.com/images/media/meals/ustsqw1468250014.jpg",
+                      "strTags": "Pasta,Curry",
+                      "strYoutube": "https://www.youtube.com/watch?v=1IszT_guI08",
+                      "strIngredient1": "penne rigate",
+                      "strIngredient2": "olive oil",
+                      "strIngredient3": "garlic",
+                      "strIngredient4": "chopped tomatoes",
+                      "strIngredient5": "red chilli flakes",
+                      "strIngredient6": "italian seasoning",
+                      "strIngredient7": "basil",
+                      "strIngredient8": "Parmigiano-Reggiano",
+                      "strIngredient9": "",
+                      "strIngredient10": ""
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/random.php": {
+      "get": {
+        "summary": "A random meal",
+        "responses": {
+          "200": {
+            "description": "One meal with its recipe",
+            "content": {
+              "application/json": {
+                "example": {
+                  "meals": [
+                    {
+                      "idMeal": "53027",
+                      "strMeal": "Koshari",
+                      "strMealAlternate": null,
+                      "strCategory": "Vegetarian",
+                      "strArea": "Egyptian",
+                      "strCountry": "Egypt",
+                      "strInstructions": "Cook the lentils. Bring lentils and 4 cups of water to a boil in a medium pot or saucepan over high heat. Reduce the heat to low and cook until lentils are just…",
+                      "strMealThumb": "https://www.themealdb.com/images/media/meals/4er7mj1598733193.jpg",
+                      "strTags": null,
+                      "strYoutube": "https://www.youtube.com/watch?v=y0d2ZMZBW4Y",
+                      "strIngredient1": "Brown Lentils",
+                      "strIngredient2": "Rice",
+                      "strIngredient3": "Coriander",
+                      "strIngredient4": "Macaroni",
+                      "strIngredient5": "Chickpeas",
+                      "strIngredient6": "Onion",
+                      "strIngredient7": "Salt",
+                      "strIngredient8": "Vegetable Oil",
+                      "strIngredient9": "",
+                      "strIngredient10": ""
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/filter.php": {
+      "get": {
+        "summary": "Meals by category, area or main ingredient",
+        "description": "Use one of the parameters. Returns names, IDs and photos only.",
+        "parameters": [
+          {
+            "name": "c",
+            "in": "query",
+            "description": "Category, e.g. Seafood (see /categories.php).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "Seafood"
+          },
+          {
+            "name": "a",
+            "in": "query",
+            "description": "Area, e.g. Italian.",
+            "schema": {
+              "type": "string"
+            },
+            "x-test-value": "Italian"
+          },
+          {
+            "name": "i",
+            "in": "query",
+            "description": "Main ingredient, e.g. chicken_breast.",
+            "schema": {
+              "type": "string"
+            },
+            "x-test-value": "chicken_breast"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching meals",
+            "content": {
+              "application/json": {
+                "example": {
+                  "meals": [
+                    {
+                      "strMeal": "Acaraje black-eyed pea fritters with shrimp filling",
+                      "strMealThumb": "https://www.themealdb.com/images/media/meals/dxs5t71782678369.jpg",
+                      "idMeal": "53483",
+                      "strArea": null,
+                      "strCountry": "Brazil"
+                    },
+                    {
+                      "strMeal": "Amok Trey – Cambodian Fish Curry",
+                      "strMealThumb": "https://www.themealdb.com/images/media/meals/diuub11782687570.jpg",
+                      "idMeal": "53495",
+                      "strArea": null,
+                      "strCountry": "Cambodia"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories.php": {
+      "get": {
+        "summary": "Meal categories",
+        "responses": {
+          "200": {
+            "description": "Categories with descriptions and images",
+            "content": {
+              "application/json": {
+                "example": {
+                  "categories": [
+                    {
+                      "idCategory": "1",
+                      "strCategory": "Beef",
+                      "strCategoryThumb": "https://www.themealdb.com/images/category/beef.png",
+                      "strCategoryDescription": "Beef is the culinary name for meat from cattle, particularly skeletal muscle. Humans have been eating beef since prehistoric times.[1] Beef is a source of high-…"
+                    },
+                    {
+                      "idCategory": "2",
+                      "strCategory": "Chicken",
+                      "strCategoryThumb": "https://www.themealdb.com/images/category/chicken.png",
+                      "strCategoryDescription": "Chicken is a type of domesticated fowl, a subspecies of the red junglefowl. It is one of the most common and widespread domestic animals, with a total populatio…"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

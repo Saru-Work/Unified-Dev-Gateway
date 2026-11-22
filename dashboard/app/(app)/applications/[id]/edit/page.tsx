@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { updateApplication } from "@/app/actions/applications";
 import { getApplication } from "@/lib/applications";
 import { getApplicationPolicies } from "@/lib/policies";
+import { PageHeader } from "@/app/ui/page-header";
 import { ApplicationForm } from "../../application-form";
-import { Wso2TokenNotice } from "../../../wso2-token-notice";
 
 export async function generateMetadata({
   params,
@@ -23,16 +23,9 @@ export default async function EditApplicationPage({
   const detailHref = `/applications/${application.id}`;
 
   return (
-    <div className="flex max-w-xl flex-col gap-6">
-      <div>
-        <Link href={detailHref} className="text-sm text-muted hover:text-foreground">
-          ← {application.name}
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Edit application</h1>
-      </div>
-
-      <Wso2TokenNotice action="edit applications" />
-
+    <>
+      <PageHeader back={{ href: detailHref, label: application.name }} icon={Pencil} title="Edit application" />
+      <div className="card max-w-2xl">
       <ApplicationForm
         action={updateApplication.bind(null, application.id)}
         submitLabel="Save changes"
@@ -45,6 +38,7 @@ export default async function EditApplicationPage({
         }}
         policies={policies}
       />
-    </div>
+      </div>
+    </>
   );
 }

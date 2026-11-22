@@ -67,3 +67,26 @@ describe("apis", () => {
     assert.equal(res.body.message, "WSO2 request failed");
   });
 });
+
+describe("GET /apis paging", () => {
+  let server: TestServer;
+  before(async () => {
+    server = await startTestServer();
+  });
+  after(() => server.close());
+
+  it("passes limit and offset to WSO2", async () => {
+    server.wso2.respond = () => ({ status: 200, data: { list: [] } });
+    const res = await server.get("/apis?limit=200&offset=25");
+    assert.equal(res.status, 200);
+    assert.equal(server.wso2.calls.at(-1)?.path, "/apis?limit=200&offset=25");
+  });
+
+  it("rejects bad paging values without calling WSO2", async () => {
+    server.wso2.calls.length = 0;
+    for (const qs of ["limit=-1", "limit=abc", "limit=5000", "offset=1.5", "limit=1&limit=2"]) {
+      assert.equal((await server.get(`/apis?${qs}`)).status, 400, qs);
+    }
+    assert.equal(server.wso2.calls.length, 0);
+  });
+});

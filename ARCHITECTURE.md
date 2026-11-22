@@ -105,8 +105,9 @@ in fakes.
 | `src/services/` | `AuthService` (register/login/me), `Wso2ApplicationService` (create/list/get/update/delete, OAuth keys, ownership) and `SubscriptionService` (an app's WSO2 subscriptions; uses `Wso2ApplicationService.get` for ownership) and `PolicyService` (WSO2 throttling policies). |
 | `src/repositories/` | `IUserRepository` / `IApplicationRepository` interfaces and their Mongo implementations. Return plain records (`PublicUser`, `ApplicationRecord`), never Mongoose documents. |
 | `src/models/` | Mongoose schemas (§3.4). |
-| `src/security/` | `PasswordHasher` (argon2), `UserTokenService` (JWT via `jose`), `requireAuth` middleware, `requireWso2Authorization`. |
+| `src/security/` | `PasswordHasher` (argon2), `UserTokenService` (JWT via `jose`), `requireAuth` middleware. |
 | `src/integrations/wso2/client.ts` | `Wso2Transport` interface plus the axios-based `Wso2Client` (10s timeout, no redirects, optional self-signed TLS). |
+| `src/integrations/wso2/Wso2TokenProvider.ts` | `Wso2TokenProvider` (the backend's own WSO2 token: DCR, password grant, caching) and `RetryWithFreshToken` (retries once on a WSO2 `401`). |
 | `src/errors/` | `AppError(statusCode, message)` and the central `errorHandler`. |
 
 **Why use interfaces at the boundaries?** Services depend on
@@ -125,22 +126,25 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 | `GET`  | `/openapi.json` | none | OpenAPI 3.1 description of this table |
 | `GET`  | `/apis` | none | Proxies the WSO2 DevPortal `GET /apis` (only publicly visible APIs) |
 | `GET`  | `/apis/:id` | none | Proxies `GET /apis/{id}` (details, including subscription `tiers`). The id is URL-encoded. |
+| `GET`  | `/apis/:id/operations` | none | Reads `GET /apis/{id}/swagger` and flattens it with `services/apiOperations.ts` into `{ operations: [{ method, path, summary?, description?, parameters, requestBody?, responses }] }`. Handles OpenAPI 3 and Swagger 2, path-level parameters, and local `$ref`s (with a depth limit against cycles). |
 | `POST` | `/auth/register` | none, rate-limited | `{ email, password }` → `201 { user }`. Password ≥ 8 chars. Email is trimmed and lowercased. Duplicate → `409`. |
 | `POST` | `/auth/login` | none, rate-limited | `{ email, password }` → `{ accessToken, tokenType: "Bearer", expiresIn: 900, user }`. Unknown user and wrong password both give the same `401`. |
 | `GET`  | `/auth/me` | OpenGate JWT | `{ user }` |
 | `POST` | `/auth/password` | OpenGate JWT, rate-limited | `{ currentPassword, newPassword }` → `204`. Wrong current password → `403` (checked first); new one needs 8+ chars and must differ. Issued tokens stay valid until they expire. |
-| `GET` | `/throttling-policies/:level` | OpenGate JWT **and** `X-WSO2-Authorization` | `level` is `application` or `subscription` (else `404`) → `{ policies: [{ name, displayName?, description?, requestCount?, unitTime?, timeUnit? }] }` |
-| `POST` | `/applications` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name, description?, throttlingPolicy? }` → `201 { application }`. The policy defaults to `Unlimited`. |
+| `GET` | `/throttling-policies/:level` | OpenGate JWT | `level` is `application` or `subscription` (else `404`) → `{ policies: [{ name, displayName?, description?, requestCount?, unitTime?, timeUnit? }] }` |
+| `POST` | `/applications` | OpenGate JWT | `{ name, description?, throttlingPolicy? }` → `201 { application }`. The policy defaults to `Unlimited`. |
 | `GET`  | `/applications` | OpenGate JWT | `{ applications: [...] }`, the caller's apps, newest first |
 | `GET`  | `/applications/:id` | OpenGate JWT | `{ application }`. Another user's app or an unknown/malformed id → `404` |
-| `PATCH` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ name?, description?, throttlingPolicy? }` → `{ application }`. WSO2's update is a full `PUT`, so stored values (including the policy) are merged in and the token type is re-sent. WSO2 first; a refusal leaves the record unchanged. |
-| `DELETE` | `/applications/:id` | OpenGate JWT **and** `X-WSO2-Authorization` | `204`. Deletes in WSO2 first (a WSO2 `404` counts as already gone), then removes the record. Ownership is checked before WSO2 is called. |
-| `GET` | `/applications/:id/keys` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ keys: [...] }` from WSO2 `oauth-keys`. Secrets and access tokens are never included. |
-| `POST` | `/applications/:id/keys` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ keyType: "PRODUCTION" \| "SANDBOX" }` → `201 { key }` with `consumerKey` **and `consumerSecret`**, the only time the secret is returned. Client-credentials grant, Resident Key Manager. Existing keys → WSO2's `409`. |
-| `POST` | `/applications/:id/keys/:keyMappingId/regenerate-secret` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ key: { consumerKey, consumerSecret } }`. The old secret stops working; the new one is returned only here. |
-| `GET` | `/applications/:id/subscriptions` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ subscriptions: [{ subscriptionId, apiId, apiName, apiVersion, apiContext, throttlingPolicy, status }] }` |
-| `POST` | `/applications/:id/subscriptions` | OpenGate JWT **and** `X-WSO2-Authorization` | `{ apiId, throttlingPolicy? = "Unlimited" }` → `201 { subscription }` |
-| `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | OpenGate JWT **and** `X-WSO2-Authorization` | `204`. First reads the subscription from WSO2 and returns `404` unless it belongs to this app. |
+| `PATCH` | `/applications/:id` | OpenGate JWT | `{ name?, description?, throttlingPolicy? }` → `{ application }`. WSO2's update is a full `PUT`, so stored values (including the policy) are merged in and the token type is re-sent. WSO2 first; a refusal leaves the record unchanged. |
+| `DELETE` | `/applications/:id` | OpenGate JWT | `204`. Deletes in WSO2 first (a WSO2 `404` counts as already gone), then removes the record. Ownership is checked before WSO2 is called. |
+| `GET` | `/applications/:id/keys` | OpenGate JWT | `{ keys: [...] }` from WSO2 `oauth-keys`. Secrets and access tokens are never included. |
+| `POST` | `/applications/:id/keys` | OpenGate JWT | `{ keyType: "PRODUCTION" \| "SANDBOX" }` → `201 { key }` with `consumerKey` **and `consumerSecret`**, the only time the secret is returned. Client-credentials grant, Resident Key Manager. Existing keys → WSO2's `409`. |
+| `DELETE` | `/applications/:id/keys/:keyMappingId` | OpenGate JWT | `204`. Checks the mapping is among the app's keys first (WSO2 answers `500` for unknown ones), so a missing one is `404`. WSO2 revokes the secret and every token issued from it. |
+| `POST` | `/applications/:id/keys/:keyMappingId/regenerate-secret` | OpenGate JWT | `{ key: { consumerKey, consumerSecret } }`. The old secret stops working; the new one is returned only here. Fails on WSO2 4.7.0 (key-manager error inside WSO2). |
+| `POST` | `/applications/:id/keys/:keyMappingId/token` | OpenGate JWT | `{ consumerSecret }` → `{ token: { accessToken, tokenType, expiresIn, scopes } }` via WSO2 `generate-token` (1 hour). WSO2's `400` for a wrong secret becomes a clear `400`. `Cache-Control: no-store`. The secret isn't stored or logged. |
+| `GET` | `/applications/:id/subscriptions` | OpenGate JWT | `{ subscriptions: [{ subscriptionId, apiId, apiName, apiVersion, apiContext, throttlingPolicy, status }] }` |
+| `POST` | `/applications/:id/subscriptions` | OpenGate JWT | `{ apiId, throttlingPolicy? = "Unlimited" }` → `201 { subscription }` |
+| `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | OpenGate JWT | `204`. First reads the subscription from WSO2 and returns `404` unless it belongs to this app. |
 
 `application` shape:
 
@@ -156,12 +160,29 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 }
 ```
 
-**Two tokens.** `Authorization: Bearer <OpenGate JWT>` identifies the
-OpenGate user. `X-WSO2-Authorization: Bearer <WSO2 token>` is forwarded
-unchanged to WSO2 when the call has to act inside WSO2: creating,
-updating and deleting applications, and everything under `keys` and
-`subscriptions`. Application reads (`GET /applications[/:id]`) are served
-from Mongo and don't need it.
+**One token for clients.** `Authorization: Bearer <OpenGate JWT>` identifies
+the OpenGate user. When a call has to act inside WSO2 (creating, updating and
+deleting applications, everything under `keys` and `subscriptions`, and
+throttling policies), the backend uses its own WSO2 token for a service
+account, from `Wso2TokenProvider`:
+
+- On first use it registers the `opengate_backend` OAuth client with WSO2
+  (DCR at `/client-registration/v0.17/register`, basic auth with
+  `WSO2_USERNAME`/`WSO2_PASSWORD`), unless `WSO2_CLIENT_ID`/`WSO2_CLIENT_SECRET`
+  are set. It then uses the password grant at `/oauth2/token` with scopes
+  `apim:subscribe apim:app_manage apim:sub_manage`.
+- The token is cached until a minute before `expires_in`; concurrent callers
+  share one request.
+- `RetryWithFreshToken` wraps the WSO2 transport: on a WSO2 `401` it drops the
+  cached token, gets a new one, and retries once.
+- If no token can be had, the call fails with `502` (not WSO2's `401`, which
+  would read as the user's session being bad) and the reason is logged.
+
+Every WSO2 application belongs to that one WSO2 account, so ownership lives
+only in Mongo and is checked before any WSO2 call. Names are unique per WSO2
+account, so they're unique across all OpenGate users. Any
+`X-WSO2-Authorization` header a client sends is ignored. Application reads
+(`GET /applications[/:id]`) are served from Mongo.
 
 ### 3.3 Key flows
 
@@ -182,7 +203,7 @@ POST /auth/login
 
 ```
 client ──POST /applications──▶ requireAuth ──▶ ApplicationController.create
-                                                  │ validates X-WSO2-Authorization, name
+                                                  │ validates name; gets the service-account WSO2 token
                                                   ▼
                                Wso2ApplicationService.create(ownerId, input, wso2Token)
                                   1. WSO2  POST /applications
@@ -299,12 +320,21 @@ Server Components and Server Actions call the backend with `lib/backend.ts`
 (`BACKEND_URL`, default `http://localhost:4000`), so the backend needs no
 CORS and tokens never reach client JavaScript.
 
-**Sessions.** Two httpOnly, `SameSite=Lax` cookies (`Secure` in production):
+**Sessions.** One httpOnly, `SameSite=Lax` cookie (`Secure` in production),
+`opengate_session`, holding the OpenGate JWT from `/auth/login` for
+`expiresIn` (15 min). There's no WSO2 token in the dashboard; the backend
+has its own. A second, readable cookie, `opengate_theme` (`light`, `dark` or
+`system`; light if missing), is read by the root layout to set
+`<html data-theme>`, so the server renders the chosen theme with no flash.
+`app/ui/theme-switcher.tsx` sets both the attribute and the cookie.
 
-| Cookie | Holds | Lifetime |
-|--------|-------|----------|
-| `opengate_session` | OpenGate JWT from `/auth/login` | `expiresIn` (15 min) |
-| `opengate_wso2_token` | WSO2 token pasted on `/settings` | 1 hour |
+**UI.** Theme tokens (light by default, dark, and "system" via
+`prefers-color-scheme`) and the component classes (`card`, `button-*`,
+`badge*`, `icon-tile`, `tone-*`) live in `app/globals.css`. Icons come from
+`lucide-react`. Shared pieces are in `app/ui/` (page header, empty state,
+logo, API icon, theme switcher). `lib/categories.ts` maps WSO2 tags to an
+icon and colour; `lib/apis.ts` loads the catalog (the list plus each API's
+details, since WSO2's list leaves tags out).
 
 `proxy.ts` redirects requests without a session cookie to
 `/login?next=<path>` (an optimistic check only). `requireUser()` in
@@ -314,17 +344,18 @@ before doing anything.
 
 | Route | What it does |
 |-------|--------------|
-| `/` | Public landing page |
+| `/` | Public landing page: hero, the live list of API categories, features, steps |
 | `/login`, `/register` | `(auth)` group: forms backed by `app/actions/auth.ts` |
+| `/dashboard` | Overview, where sign-in lands: counts (subscriptions and keys are read per app, in parallel), a getting-started checklist driven by that data, recent applications, one featured API per category |
 | `/applications` | The user's applications, newest first, filtered on the server with `?q=` (name, description, policy) |
-| `/applications/new` | Create (needs the WSO2 cookie). The throttling policy select is filled from `/throttling-policies/application` and hidden if that can't be loaded. |
+| `/applications/new` | Create. The throttling policy select is filled from `/throttling-policies/application` and hidden if that can't be loaded. |
 | `/applications/[id]` | Details; OAuth keys and subscriptions (each streamed in its own `Suspense`); delete with confirmation. A backend `404` renders `not-found.tsx`. A new or regenerated secret is held in client state only, so those actions deliberately don't revalidate. Regenerating asks for an inline confirmation first. |
 | `/applications/[id]/edit` | Rename, re-describe, or change the throttling policy |
-| `/apis` | Public WSO2 APIs, filtered on the server with `?q=` |
-| `/apis/[id]` | API details, gateway endpoints, and a form to subscribe one of your apps on one of its tiers |
-| `/settings` | Save or clear the WSO2 token; change password |
+| `/apis` | The API catalog, filtered on the server with `?q=` and `?tag=` (category chips with counts) |
+| `/apis/[id]` | API details, a form to subscribe one of your apps on one of its tiers, an **Endpoints** section (one collapsible entry per operation: parameters, body fields, example responses, and a sample `curl` filled with example values against the first gateway URL), and the gateway URLs |
+| `/settings` | Profile, appearance (theme) and password |
 
-The signed-in routes share the `(app)` layout (header, navigation, sign out)
+The signed-in routes share the `(app)` layout (sidebar navigation, theme switch, sign out; a drawer on small screens)
 with `loading.tsx` and `error.tsx`. `app/error.tsx` catches failures in that
 layout itself, such as the backend being unreachable.
 
@@ -342,9 +373,13 @@ layout itself, such as the backend being unreachable.
   rollback), `POST /applications/{id}/generate-keys`,
   `GET /applications/{id}/oauth-keys`,
   `POST /applications/{id}/oauth-keys/{keyMappingId}/regenerate-secret`,
+  `POST /applications/{id}/oauth-keys/{keyMappingId}/generate-token`,
+  `DELETE /applications/{id}/oauth-keys/{keyMappingId}`,
   `GET /throttling-policies/{application|subscription}`, and `GET`/`POST`/`DELETE` on
-  `/subscriptions`. The keys, secret, policy and subscription calls follow the v3 spec
-  but haven't yet been run against a live 4.7.0 instance.
+  `/subscriptions`. Against the live 4.7.0 compose stack, creating and deleting
+  applications, generating, listing and deleting keys, `generate-token`, policies, subscribing
+  and listing subscriptions have been run and work; `regenerate-secret` fails inside
+  WSO2's key manager. The application `PUT` and unsubscribe haven't been run live yet.
 - New applications are created with `tokenType: "JWT"` and the chosen
   `throttlingPolicy` (default `"Unlimited"`).
 - `wso2-config/apis` and `wso2-config/sequences` are set aside for API
@@ -357,11 +392,11 @@ layout itself, such as the backend being unreachable.
 
 | Area | Gap | Suggested direction |
 |------|-----|---------------------|
-| WSO2 credentials | Clients have to supply their own WSO2 token (`X-WSO2-Authorization`). | Have the backend get its own token: register an OAuth client with WSO2 (DCR) and use a service account. Then users only ever deal with OpenGate tokens. |
-| Application lifecycle | Keys use the client-credentials grant only; secrets can be regenerated, but there's no overlap period when rotating, and no API keys. Keys, secrets, policies and subscriptions are only tested against a fake WSO2. | Configurable grant types. Run an end-to-end test against the compose stack. |
+| WSO2 credentials | The backend acts as one WSO2 account (default `admin`, via the password grant), so all apps share it and names are unique across users. | Use a dedicated least-privilege WSO2 user. Consider per-user WSO2 subscribers if apps must be separated in WSO2 itself. |
+| Application lifecycle | Keys use the client-credentials grant only; no API keys. Regenerating a secret fails on WSO2 4.7.0; deleting the keys and generating new ones is the workaround, but it revokes existing tokens with no overlap. The automated tests use a fake WSO2. | Find why WSO2 4.7.0's key manager rejects the secret update. Configurable grant types. Automate an end-to-end test against the compose stack. |
 | Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token, so changing the password doesn't sign out other sessions. | Refresh token in an httpOnly cookie, rotated on each use. |
 | Rate limiting | Kept in memory per instance. | Move to a shared store (e.g. Redis) once there's more than one backend instance. |
 | `/apis` | Unauthenticated and sends no WSO2 token, so only public APIs show up. | Decide on visibility, then forward the right credentials. |
-| Dashboard | Users paste a WSO2 token by hand; no session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the WSO2 credentials and sessions rows above. Add Playwright end-to-end tests. |
+| Dashboard | No session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the sessions row above. Add Playwright end-to-end tests. |
 | SDK | `packages/sdk` not implemented. | Generate it from `/openapi.json` (e.g. `openapi-typescript`), then use it in the dashboard instead of the hand-written types in `lib/types.ts`. |
 | Observability | JSON request logs with ids and a `/ready` check exist, but there are no metrics, and the request id isn't forwarded to WSO2 or from the dashboard. | Forward `X-Request-Id` end to end; add request metrics (e.g. Prometheus). |

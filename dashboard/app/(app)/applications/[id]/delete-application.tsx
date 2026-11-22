@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { useActionState, useState } from "react";
 import { deleteApplication } from "@/app/actions/applications";
 
@@ -10,7 +11,9 @@ export function DeleteApplication({ id, name }: { id: string; name: string }) {
   return (
     <section className="card flex flex-col items-start gap-3 border-danger">
       <div>
-        <h2 className="font-semibold">Delete application</h2>
+        <h2 className="inline-flex items-center gap-2 font-semibold text-danger">
+          <Trash2 aria-hidden className="size-4" /> Delete application
+        </h2>
         <p className="text-sm text-muted">
           Removes it from WSO2 API Manager as well. Anything using its
           credentials will stop working. This can&apos;t be undone.

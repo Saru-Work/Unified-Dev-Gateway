@@ -20,8 +20,6 @@ interface RequestOptions {
   body?: unknown;
   /** OpenGate access token (sent as Authorization). */
   token?: string;
-  /** WSO2 token (sent as X-WSO2-Authorization). */
-  wso2Token?: string;
 }
 
 function parse(text: string): unknown {
@@ -35,12 +33,11 @@ function parse(text: string): unknown {
 
 export async function backend<T>(
   path: string,
-  { method = "GET", body, token, wso2Token }: RequestOptions = {},
+  { method = "GET", body, token }: RequestOptions = {},
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (wso2Token) headers["X-WSO2-Authorization"] = `Bearer ${wso2Token}`;
 
   let res: Response;
   try {

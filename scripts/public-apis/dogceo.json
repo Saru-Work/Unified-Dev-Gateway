@@ -1,0 +1,170 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "DogCEO",
+    "version": "1.0.0",
+    "description": "Dog breeds and random dog pictures from the Stanford Dogs dataset. Docs: https://dog.ceo/dog-api/documentation/"
+  },
+  "x-opengate": {
+    "context": "/dogs",
+    "backend": "https://dog.ceo/api",
+    "tags": [
+      "fun",
+      "animals"
+    ]
+  },
+  "paths": {
+    "/breeds/list/all": {
+      "get": {
+        "summary": "List all breeds",
+        "description": "Every breed, each with its sub-breeds.",
+        "responses": {
+          "200": {
+            "description": "Breeds",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": {
+                    "affenpinscher": [],
+                    "african": [
+                      "wild"
+                    ],
+                    "airedale": [],
+                    "akita": [],
+                    "appenzeller": [],
+                    "australian": [
+                      "kelpie",
+                      "shepherd"
+                    ],
+                    "bakharwal": [
+                      "indian"
+                    ],
+                    "basenji": [],
+                    "beagle": [],
+                    "bluetick": [],
+                    "borzoi": [],
+                    "bouvier": [],
+                    "boxer": [],
+                    "brabancon": [],
+                    "briard": [],
+                    "buhund": [
+                      "norwegian"
+                    ],
+                    "bulldog": [
+                      "boston",
+                      "english"
+                    ],
+                    "bullterrier": [
+                      "staffordshire"
+                    ],
+                    "cattledog": [
+                      "australian"
+                    ],
+                    "cavapoo": []
+                  },
+                  "status": "success"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/breeds/image/random": {
+      "get": {
+        "summary": "A random dog picture",
+        "responses": {
+          "200": {
+            "description": "Image URL",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "https://images.dog.ceo/breeds/mexicanhairless/n02113978_759.jpg",
+                  "status": "success"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/breed/{breed}/images/random": {
+      "get": {
+        "summary": "A random picture of one breed",
+        "parameters": [
+          {
+            "name": "breed",
+            "in": "path",
+            "required": true,
+            "description": "A breed from the breed list.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "pug"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image URL",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "https://images.dog.ceo/breeds/pug/n02110958_13439.jpg",
+                  "status": "success"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown breed",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "error",
+                  "message": "Breed not found (main breed does not exist)",
+                  "code": 404
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/breed/{breed}/list": {
+      "get": {
+        "summary": "List a breed's sub-breeds",
+        "parameters": [
+          {
+            "name": "breed",
+            "in": "path",
+            "required": true,
+            "description": "A breed from the breed list.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hound"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sub-breeds (empty if none)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": [
+                    "afghan",
+                    "basset"
+                  ],
+                  "status": "success"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown breed"
+          }
+        }
+      }
+    }
+  }
+}

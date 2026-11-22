@@ -1,0 +1,124 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "ChuckNorris",
+    "version": "1.0.0",
+    "description": "Chuck Norris jokes, random or by category or search. Docs: https://api.chucknorris.io"
+  },
+  "x-opengate": {
+    "context": "/chucknorris",
+    "backend": "https://api.chucknorris.io",
+    "tags": [
+      "fun"
+    ]
+  },
+  "paths": {
+    "/jokes/random": {
+      "get": {
+        "summary": "A random joke",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Only from this category (see /jokes/categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-test-value": "dev"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A joke",
+            "content": {
+              "application/json": {
+                "example": {
+                  "categories": [],
+                  "created_at": "2020-01-05 13:42:23.240175",
+                  "icon_url": "https://api.chucknorris.io/img/avatar/chuck-norris.png",
+                  "id": "s4gAuWb2SyG6Je4AnZhYcg",
+                  "updated_at": "2020-01-05 13:42:23.240175",
+                  "url": "https://api.chucknorris.io/jokes/s4gAuWb2SyG6Je4AnZhYcg",
+                  "value": "Chuck Norris had an unfortunate run in with The Predator. It was unfortunate for the Predator, as Chuck slapped him stupid and sent him home."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown category"
+          }
+        }
+      }
+    },
+    "/jokes/categories": {
+      "get": {
+        "summary": "Joke categories",
+        "responses": {
+          "200": {
+            "description": "Category names",
+            "content": {
+              "application/json": {
+                "example": [
+                  "animal",
+                  "career"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jokes/search": {
+      "get": {
+        "summary": "Search jokes",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "description": "Search text (3–120 characters).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "computer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching jokes and how many",
+            "content": {
+              "application/json": {
+                "example": {
+                  "total": 26,
+                  "result": [
+                    {
+                      "categories": [],
+                      "created_at": "2020-01-05 13:42:19.104863",
+                      "icon_url": "https://api.chucknorris.io/img/avatar/chuck-norris.png",
+                      "id": "y-b7g8trr96pfmopdplf4g",
+                      "updated_at": "2020-01-05 13:42:19.104863",
+                      "url": "https://api.chucknorris.io/jokes/y-b7g8trr96pfmopdplf4g",
+                      "value": "Chuck Norris doesn't use a computer because a computer does everything slower than Chuck Norris."
+                    },
+                    {
+                      "categories": [],
+                      "created_at": "2020-01-05 13:42:19.897976",
+                      "icon_url": "https://api.chucknorris.io/img/avatar/chuck-norris.png",
+                      "id": "AN7_hBUjSW-Fnbn-28jaVQ",
+                      "updated_at": "2020-01-05 13:42:19.897976",
+                      "url": "https://api.chucknorris.io/jokes/AN7_hBUjSW-Fnbn-28jaVQ",
+                      "value": "When Chuck Norris wants cookies, he crashes open a computer."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Query too short or too long"
+          }
+        }
+      }
+    }
+  }
+}

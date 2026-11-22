@@ -1,57 +1,74 @@
+import { Lock, Palette, Settings, UserRound } from "lucide-react";
 import type { Metadata } from "next";
-import { clearWso2Token } from "@/app/actions/wso2";
-import { getWso2Token, requireUser } from "@/lib/session";
+import { cookies } from "next/headers";
+import { PageHeader } from "@/app/ui/page-header";
+import { ThemeSwitcher } from "@/app/ui/theme-switcher";
+import { requireUser } from "@/lib/session";
+import { parseTheme, THEME_COOKIE } from "@/lib/theme";
 import { PasswordForm } from "./password-form";
-import { Wso2TokenForm } from "./wso2-token-form";
 
 export const metadata: Metadata = { title: "Settings · OpenGate" };
 
+function Section({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: typeof Lock;
+  title: string;
+  description: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="card grid gap-6 md:grid-cols-3">
+      <div className="flex flex-col gap-1">
+        <h2 className="inline-flex items-center gap-2 font-semibold">
+          <Icon aria-hidden className="size-4.5 text-accent" /> {title}
+        </h2>
+        <p className="text-sm text-muted">{description}</p>
+      </div>
+      <div className="md:col-span-2">{children}</div>
+    </section>
+  );
+}
+
 export default async function SettingsPage() {
   const { user } = await requireUser();
-  const hasToken = Boolean(await getWso2Token());
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <PageHeader icon={Settings} title="Settings" description="Your account and how OpenGate looks." />
 
-      <section className="card flex max-w-2xl flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold">WSO2 access token</h2>
-          <p className="text-sm text-muted">
-            Creating and deleting applications happens inside WSO2 API Manager,
-            so OpenGate needs a WSO2 DevPortal access token with the{" "}
-            <code className="font-mono">apim:subscribe</code> and{" "}
-            <code className="font-mono">apim:app_manage</code> scopes. It&apos;s
-            kept in a secure cookie on this browser only and is never shown again.
-          </p>
+      <Section icon={UserRound} title="Profile" description="The account you sign in with.">
+        <div className="flex items-center gap-4">
+          <span
+            aria-hidden
+            className="inline-flex size-12 items-center justify-center rounded-full bg-accent-soft text-lg font-semibold uppercase text-accent"
+          >
+            {user.email.charAt(0)}
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-medium">{user.email}</span>
+            <span className="text-xs text-muted">Developer account</span>
+          </div>
         </div>
+      </Section>
 
-        <p className={hasToken ? "notice-info" : "notice-error"}>
-          {hasToken
-            ? "A WSO2 token is saved for this session."
-            : "No WSO2 token saved. You can browse, but not create or delete applications."}
-        </p>
+      <Section
+        icon={Palette}
+        title="Appearance"
+        description="Light, dark, or follow your device. Saved on this browser."
+      >
+        <ThemeSwitcher initial={theme} showLabels />
+      </Section>
 
-        <Wso2TokenForm />
-
-        {hasToken && (
-          <form action={clearWso2Token}>
-            <button type="submit" className="button-secondary">
-              Forget saved token
-            </button>
-          </form>
-        )}
-      </section>
-
-      <section className="card flex max-w-2xl flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold">Password</h2>
-          <p className="text-sm text-muted">
-            Change the password for <strong>{user.email}</strong>.
-          </p>
+      <Section icon={Lock} title="Password" description={<>Change the password for <strong>{user.email}</strong>.</>}>
+        <div className="max-w-md">
+          <PasswordForm />
         </div>
-        <PasswordForm />
-      </section>
+      </Section>
     </>
   );
 }

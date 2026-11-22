@@ -1,0 +1,120 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "RandomUser",
+    "version": "1.0.0",
+    "description": "Generates fake user profiles (names, addresses, emails, photos) for testing. Docs: https://randomuser.me/documentation"
+  },
+  "x-opengate": {
+    "context": "/randomuser",
+    "backend": "https://randomuser.me/api",
+    "tags": [
+      "demo",
+      "testing"
+    ]
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Generate users",
+        "parameters": [
+          {
+            "name": "results",
+            "in": "query",
+            "description": "How many users (up to 5000).",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "example": 2
+          },
+          {
+            "name": "nat",
+            "in": "query",
+            "description": "Comma-separated nationalities, e.g. gb,us,fr.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "gb"
+          },
+          {
+            "name": "gender",
+            "in": "query",
+            "description": "Only this gender.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "female",
+                "male"
+              ]
+            }
+          },
+          {
+            "name": "inc",
+            "in": "query",
+            "description": "Comma-separated fields to include, e.g. name,email,location,picture.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "name,email,nat"
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "description": "Same seed, same users: makes results repeatable.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "opengate"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page of results for a seed.",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users, and the seed and page used",
+            "content": {
+              "application/json": {
+                "example": {
+                  "results": [
+                    {
+                      "name": {
+                        "title": "Mr",
+                        "first": "Barry",
+                        "last": "Bates"
+                      },
+                      "email": "barry.bates@example.com",
+                      "nat": "GB"
+                    },
+                    {
+                      "name": {
+                        "title": "Mr",
+                        "first": "Alfredo",
+                        "last": "Burns"
+                      },
+                      "email": "alfredo.burns@example.com",
+                      "nat": "GB"
+                    }
+                  ],
+                  "info": {
+                    "seed": "opengate",
+                    "results": 2,
+                    "page": 1,
+                    "version": "1.4"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

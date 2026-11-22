@@ -2,8 +2,6 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { startTestServer, type TestServer } from "./helpers";
 
-const WSO2 = { "x-wso2-authorization": "Bearer wso2-token" };
-
 const WSO2_SUBSCRIPTION = {
   subscriptionId: "sub-1",
   applicationId: "wso2-app",
@@ -29,7 +27,7 @@ describe("subscriptions", () => {
   beforeEach(async () => {
     server.applications.records.length = 0;
     server.wso2.respond = () => ({ status: 201, data: { applicationId: "wso2-app" } });
-    const { body } = await server.post("/applications", { name: "app" }, { ...alice, ...WSO2 });
+    const { body } = await server.post("/applications", { name: "app" }, alice);
     appId = body.application.id;
     server.wso2.calls.length = 0;
   });
@@ -48,7 +46,7 @@ describe("subscriptions", () => {
     it("lists the app's subscriptions from WSO2", async () => {
       server.wso2.respond = () => ({ status: 200, data: { count: 1, list: [WSO2_SUBSCRIPTION] } });
 
-      const res = await server.get(`/applications/${appId}/subscriptions`, { ...alice, ...WSO2 });
+      const res = await server.get(`/applications/${appId}/subscriptions`, alice);
 
       assert.equal(res.status, 200);
       assert.deepEqual(res.body, { subscriptions: [expected] });
@@ -61,13 +59,9 @@ describe("subscriptions", () => {
       ]);
     });
 
-    it("requires a WSO2 token", async () => {
-      const res = await server.get(`/applications/${appId}/subscriptions`, alice);
-      assert.equal(res.status, 401);
-    });
 
     it("returns 404 for another user's app", async () => {
-      const res = await server.get(`/applications/${appId}/subscriptions`, { ...bob, ...WSO2 });
+      const res = await server.get(`/applications/${appId}/subscriptions`, bob);
       assert.equal(res.status, 404);
       assert.equal(server.wso2.calls.length, 0);
     });
@@ -75,7 +69,7 @@ describe("subscriptions", () => {
 
   describe("POST /applications/:id/subscriptions", () => {
     const subscribe = (body: unknown, headers = alice) =>
-      server.post(`/applications/${appId}/subscriptions`, body, { ...headers, ...WSO2 });
+      server.post(`/applications/${appId}/subscriptions`, body, headers);
 
     it("requires an apiId", async () => {
       const res = await subscribe({});
@@ -115,10 +109,7 @@ describe("subscriptions", () => {
 
   describe("DELETE /applications/:id/subscriptions/:subscriptionId", () => {
     const unsubscribe = (subscriptionId: string, headers = alice) =>
-      server.delete(`/applications/${appId}/subscriptions/${subscriptionId}`, {
-        ...headers,
-        ...WSO2,
-      });
+      server.delete(`/applications/${appId}/subscriptions/${subscriptionId}`, headers);
 
     it("checks the subscription belongs to the app, then deletes it", async () => {
       server.wso2.respond = (call) =>

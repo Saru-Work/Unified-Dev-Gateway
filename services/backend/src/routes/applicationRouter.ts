@@ -15,7 +15,9 @@ export function createApplicationRouter(
   router.delete("/:id", controller.delete);
   router.get("/:id/keys", controller.listKeys);
   router.post("/:id/keys", controller.generateKeys);
+  router.delete("/:id/keys/:keyMappingId", controller.deleteKeys);
   router.post("/:id/keys/:keyMappingId/regenerate-secret", controller.regenerateSecret);
+  router.post("/:id/keys/:keyMappingId/token", controller.generateToken);
   router.get("/:id/subscriptions", controller.listSubscriptions);
   router.post("/:id/subscriptions", controller.subscribe);
   router.delete("/:id/subscriptions/:subscriptionId", controller.unsubscribe);

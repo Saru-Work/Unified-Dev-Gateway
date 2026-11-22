@@ -1,0 +1,98 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Universities",
+    "version": "1.0.0",
+    "description": "Search universities worldwide by name or country, with their domains and websites. Docs: https://github.com/Hipo/university-domains-list"
+  },
+  "x-opengate": {
+    "context": "/universities",
+    "backend": "http://universities.hipolabs.com",
+    "tags": [
+      "education",
+      "reference"
+    ]
+  },
+  "paths": {
+    "/search": {
+      "get": {
+        "summary": "Search universities",
+        "description": "Give a name, a country, or both. Matching is case-insensitive and partial.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Part of the university's name.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "technology"
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "description": "Country name in English, e.g. United Kingdom.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "Japan"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Most results to return.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 3
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Results to skip, for paging.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching universities",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "web_pages": [
+                      "https://asahikawa-nct.ac.jp/"
+                    ],
+                    "country": "Japan",
+                    "state-province": null,
+                    "alpha_two_code": "JP",
+                    "name": "National Institute of Technology, Asahikawa College",
+                    "domains": [
+                      "edu.asahikawa-nct.ac.jp",
+                      "asahikawa-nct.ac.jp"
+                    ]
+                  },
+                  {
+                    "web_pages": [
+                      "https://www.naist.jp/"
+                    ],
+                    "country": "Japan",
+                    "state-province": null,
+                    "alpha_two_code": "JP",
+                    "name": "Nara Institute of Science and Technology",
+                    "domains": [
+                      "bs.naist.jp"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

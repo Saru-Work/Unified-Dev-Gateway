@@ -3,7 +3,7 @@ import { KEY_TYPES, type KeyType } from "../services/Wso2ApplicationService";
 import type { Wso2ApplicationService } from "../services/Wso2ApplicationService";
 import type { SubscriptionService } from "../services/SubscriptionService";
 import { AppError } from "../errors/AppError";
-import { requireWso2Authorization } from "../security/wso2Authorization";
+import type { Wso2TokenSource } from "../integrations/wso2/Wso2TokenProvider";
 /** Optional throttlingPolicy field: absent → undefined, otherwise a non-empty string. */
 function readThrottlingPolicy(value: unknown): string | undefined {
   if (value === undefined) return undefined;
@@ -17,10 +17,11 @@ export class ApplicationController {
   constructor(
     private readonly service: Wso2ApplicationService,
     private readonly subscriptions: SubscriptionService,
+    private readonly wso2Token: Wso2TokenSource,
   ) {}
 
   create = async (req: Request, res: Response) => {
-    const wso2Authorization = requireWso2Authorization(req);
+    const wso2Authorization = await this.wso2Token.getAuthorization();
     const { name, description, throttlingPolicy } = (req.body ?? {}) as Record<
       string,
       unknown
@@ -56,7 +57,7 @@ export class ApplicationController {
   };
 
   update = async (req: Request<{ id: string }>, res: Response) => {
-    const wso2Authorization = requireWso2Authorization(req);
+    const wso2Authorization = await this.wso2Token.getAuthorization();
     const { name, description, throttlingPolicy } = (req.body ?? {}) as Record<
       string,
       unknown
@@ -90,13 +91,13 @@ export class ApplicationController {
     const keys = await this.service.listKeys(
       res.locals.userId as string,
       req.params.id,
-      requireWso2Authorization(req),
+      await this.wso2Token.getAuthorization(),
     );
     res.json({ keys });
   };
 
   generateKeys = async (req: Request<{ id: string }>, res: Response) => {
-    const wso2Authorization = requireWso2Authorization(req);
+    const wso2Authorization = await this.wso2Token.getAuthorization();
     const { keyType } = (req.body ?? {}) as Record<string, unknown>;
     if (!KEY_TYPES.includes(keyType as KeyType)) {
       throw new AppError(400, `keyType must be one of ${KEY_TYPES.join(", ")}`);
@@ -118,22 +119,54 @@ export class ApplicationController {
       res.locals.userId as string,
       req.params.id,
       req.params.keyMappingId,
-      requireWso2Authorization(req),
+      await this.wso2Token.getAuthorization(),
     );
     res.json({ key });
+  };
+
+  deleteKeys = async (
+    req: Request<{ id: string; keyMappingId: string }>,
+    res: Response,
+  ) => {
+    await this.service.deleteKeys(
+      res.locals.userId as string,
+      req.params.id,
+      req.params.keyMappingId,
+      await this.wso2Token.getAuthorization(),
+    );
+    res.status(204).end();
+  };
+
+  generateToken = async (
+    req: Request<{ id: string; keyMappingId: string }>,
+    res: Response,
+  ) => {
+    const { consumerSecret } = (req.body ?? {}) as Record<string, unknown>;
+    if (typeof consumerSecret !== "string" || !consumerSecret.trim()) {
+      throw new AppError(400, "consumerSecret is required");
+    }
+    const token = await this.service.generateToken(
+      res.locals.userId as string,
+      req.params.id,
+      req.params.keyMappingId,
+      consumerSecret.trim(),
+      await this.wso2Token.getAuthorization(),
+    );
+    // A bearer credential: keep it out of shared caches.
+    res.set("Cache-Control", "no-store").json({ token });
   };
 
   listSubscriptions = async (req: Request<{ id: string }>, res: Response) => {
     const subscriptions = await this.subscriptions.list(
       res.locals.userId as string,
       req.params.id,
-      requireWso2Authorization(req),
+      await this.wso2Token.getAuthorization(),
     );
     res.json({ subscriptions });
   };
 
   subscribe = async (req: Request<{ id: string }>, res: Response) => {
-    const wso2Authorization = requireWso2Authorization(req);
+    const wso2Authorization = await this.wso2Token.getAuthorization();
     const { apiId, throttlingPolicy = "Unlimited" } = (req.body ?? {}) as Record<
       string,
       unknown
@@ -161,7 +194,7 @@ export class ApplicationController {
       res.locals.userId as string,
       req.params.id,
       req.params.subscriptionId,
-      requireWso2Authorization(req),
+      await this.wso2Token.getAuthorization(),
     );
     res.status(204).end();
   };
@@ -170,7 +203,7 @@ export class ApplicationController {
     await this.service.delete(
       res.locals.userId as string,
       req.params.id,
-      requireWso2Authorization(req),
+      await this.wso2Token.getAuthorization(),
     );
     res.status(204).end();
   };

@@ -1,0 +1,85 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Dictionary",
+    "version": "1.0.0",
+    "description": "English word definitions, phonetics, examples and synonyms, from Free Dictionary API. Docs: https://dictionaryapi.dev"
+  },
+  "x-opengate": {
+    "context": "/dictionary",
+    "backend": "https://api.dictionaryapi.dev/api/v2",
+    "tags": [
+      "reference",
+      "language"
+    ]
+  },
+  "paths": {
+    "/entries/en/{word}": {
+      "get": {
+        "summary": "Look up an English word",
+        "parameters": [
+          {
+            "name": "word",
+            "in": "path",
+            "required": true,
+            "description": "The word to look up.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "gateway"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per sense group, with meanings by part of speech",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "word": "gateway",
+                    "phonetic": "/ˈɡeɪtˌweɪ/",
+                    "phonetics": [
+                      {
+                        "text": "/ˈɡeɪtˌweɪ/",
+                        "audio": ""
+                      }
+                    ],
+                    "meanings": [
+                      {
+                        "partOfSpeech": "noun",
+                        "definitions": [
+                          {},
+                          {}
+                        ],
+                        "synonyms": [],
+                        "antonyms": []
+                      },
+                      {
+                        "partOfSpeech": "verb",
+                        "definitions": [
+                          {}
+                        ],
+                        "synonyms": [],
+                        "antonyms": []
+                      }
+                    ],
+                    "license": {
+                      "name": "CC BY-SA 3.0",
+                      "url": "https://creativecommons.org/licenses/by-sa/3.0"
+                    },
+                    "sourceUrls": [
+                      "https://en.wiktionary.org/wiki/gateway"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "404": {
+            "description": "Word not found"
+          }
+        }
+      }
+    }
+  }
+}

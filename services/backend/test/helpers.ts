@@ -2,6 +2,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createApp } from "../src/app";
 import type { HttpResult, Wso2Transport } from "../src/integrations/wso2/client";
+import type { Wso2TokenSource } from "../src/integrations/wso2/Wso2TokenProvider";
 import type {
   ApplicationChanges,
   ApplicationRecord,
@@ -157,9 +158,31 @@ export class FakeWso2 implements Wso2Transport {
   }
 }
 
+/** Stands in for the backend's WSO2 service-account token. */
+export class FakeWso2Token implements Wso2TokenSource {
+  /** Tokens handed out in order; the last one repeats. */
+  tokens = ["wso2-token"];
+  /** Set to make getAuthorization() throw, e.g. WSO2's token endpoint is down. */
+  failWith: Error | null = null;
+  readonly invalidated: string[] = [];
+  private issued = 0;
+
+  async getAuthorization(): Promise<string> {
+    if (this.failWith) throw this.failWith;
+    const token = this.tokens[Math.min(this.issued, this.tokens.length - 1)];
+    return `Bearer ${token}`;
+  }
+
+  invalidate(authorization: string): void {
+    this.invalidated.push(authorization);
+    this.issued++;
+  }
+}
+
 export interface TestServer {
   url: string;
   wso2: FakeWso2;
+  wso2Token: FakeWso2Token;
   applications: InMemoryApplicationRepository;
   tokens: UserTokenService;
   /** Everything the app logged, instead of writing it to the console. */
@@ -190,6 +213,7 @@ export interface TestServer {
 
 export async function startTestServer(): Promise<TestServer> {
   const wso2 = new FakeWso2();
+  const wso2Token = new FakeWso2Token();
   const tokens = new UserTokenService(TEST_SECRET);
   const applications = new InMemoryApplicationRepository();
   const logs: LogEntry[] = [];
@@ -200,6 +224,7 @@ export async function startTestServer(): Promise<TestServer> {
     passwords: fakeHasher,
     tokens,
     wso2,
+    wso2Token,
   });
 
   const server: Server = await new Promise((resolve) => {
@@ -227,6 +252,7 @@ export async function startTestServer(): Promise<TestServer> {
   const ts: TestServer = {
     url,
     wso2,
+    wso2Token,
     applications,
     tokens,
     logs,

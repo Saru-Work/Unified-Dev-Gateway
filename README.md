@@ -94,6 +94,69 @@ client generator.
 Stop it with `docker compose down`. Add `-v` to also delete the Mongo and
 WSO2 data volumes.
 
+### Sample APIs
+
+A fresh WSO2 has only its PizzaShack sample. To add 18 free public APIs that
+need no key of their own, run:
+
+```bash
+scripts/seed-public-apis.sh   # needs curl and jq; safe to re-run
+```
+
+| API | Gateway path | Try |
+|-----|--------------|-----|
+| JSONPlaceholder | `/jsonplaceholder/1.0.0` | `/posts/1`, `/users`, `/todos?userId=1` |
+| OpenMeteo (weather) | `/weather/1.0.0` | `/forecast?latitude=51.5&longitude=-0.12&current_weather=true` |
+| SunriseSunset | `/sun/1.0.0` | `/json?lat=51.5&lng=-0.12` |
+| PublicHolidays | `/holidays/1.0.0` | `/PublicHolidays/2026/GB`, `/NextPublicHolidays/US` |
+| Frankfurter (currency) | `/currency/1.0.0` | `/latest?base=USD&symbols=EUR,GBP` |
+| PostalCodes | `/postcodes/1.0.0` | `/us/90210` |
+| Universities | `/universities/1.0.0` | `/search?country=Japan&limit=3` |
+| Dictionary | `/dictionary/1.0.0` | `/entries/en/gateway` |
+| ArtInstitute | `/art/1.0.0` | `/artworks/search?q=cats&limit=3` |
+| TVMaze | `/tv/1.0.0` | `/search/shows?q=the office`, `/shows/526/cast` |
+| RickAndMorty | `/rickandmorty/1.0.0` | `/character?name=rick` |
+| PokeAPI | `/pokemon/1.0.0` | `/pokemon/pikachu` |
+| TheMealDB | `/meals/1.0.0` | `/search.php?s=arrabiata` |
+| RandomUser | `/randomuser/1.0.0` | `/?results=2&nat=gb` |
+| CatFacts | `/catfacts/1.0.0` | `/fact` |
+| DogCEO | `/dogs/1.0.0` | `/breeds/image/random`, `/breed/hound/list` |
+| ChuckNorris | `/chucknorris/1.0.0` | `/jokes/random` |
+| Agify | `/agify/1.0.0` | `/?name=alex` |
+
+Each is published with the Bronze, Silver, Gold and Unlimited tiers. The
+gateway takes about 15 seconds to load new APIs, and answers `404` until
+then. Calls still need a subscribed app's access token ([§4.9](#49-call-a-subscribed-api)).
+The script uses `WSO2_URL`, `WSO2_USERNAME` and `WSO2_PASSWORD` (default
+`https://localhost:9443`, `admin`, `admin`). Some upstream APIs have their own
+limits (Agify: 100 names a day; TVMaze: 20 calls per 10 seconds) and terms
+(SunriseSunset asks to be credited; TheMealDB's built-in key is for
+development); see each API's description.
+
+#### Adding or changing an API
+
+Each API is an OpenAPI 3 file in `scripts/public-apis/`: summaries, parameters,
+request bodies and example responses. That's what the **Endpoints** section of
+an API's page in the dashboard shows. The file's `x-opengate` block sets the
+gateway context, the real backend URL and the tags.
+
+1. Add or edit a file. Give path and required parameters an `example`. For an
+   optional parameter with no example and no real default, add an
+   `x-test-value`: it's used for testing only and never shown in the docs.
+2. Check it against the real API and record real example responses:
+
+   ```bash
+   node scripts/record-examples.mjs scripts/public-apis/books.json   # or no args for all
+   ```
+
+   It calls every GET endpoint with its examples, saves the actual response
+   (trimmed) as the example, tries each optional parameter once, and exits 1
+   if anything doesn't answer 2xx. Other methods are left as written, since
+   calling them could change data.
+3. Run `scripts/seed-public-apis.sh` to upload it. Changing only the docs
+   re-uploads the definition; adding or removing an endpoint also redeploys the
+   API to the gateway.
+
 ---
 
 ## 3. The end-to-end flow
@@ -116,37 +179,29 @@ WSO2 data volumes.
  │ 3. Browse    │  The APIs published in WSO2
  └──────┬───────┘
         ▼
- ┌──────────────┐  Get a token from WSO2 itself (see §4.4); OpenGate
- │ 4. WSO2 token│  forwards it to WSO2 when creating applications
- └──────┬───────┘
-        ▼
  ┌──────────────┐  POST /applications
- │ 5. Create an │  OpenGate creates the app in WSO2, then records you
- │  application │  as its owner in MongoDB
+ │ 4. Create an │  OpenGate creates the app in WSO2 with its own
+ │  application │  WSO2 token, then records you as its owner in MongoDB
  └──────┬───────┘
         ▼
- ┌──────────────┐  GET /applications, GET /applications/:id
- │ 6. Manage    │  Lists only your own apps; no WSO2 token needed
+ ┌──────────────┐  GET /applications, keys, subscriptions, …
+ │ 5. Manage    │  Only your own apps are visible to you
  └──────────────┘
 ```
 
-### Two tokens
+### One token
 
-Every call that changes something in WSO2 carries **two** tokens:
+Users only ever send their **OpenGate** token (`Authorization: Bearer …` from
+`/auth/login`). It says who you are, and OpenGate uses it to check that you own
+the application you're acting on.
 
-| Header | Token | Proves |
-|--------|-------|--------|
-| `Authorization: Bearer …` | OpenGate access token from `/auth/login` | *Who you are in OpenGate* (used for ownership) |
-| `X-WSO2-Authorization: Bearer …` | WSO2 OAuth token | *That WSO2 allows the action* (forwarded unchanged to WSO2) |
-
-Only `POST` and `DELETE` on `/applications` need the WSO2 token today. Reads come from
-OpenGate's own database. (Having the backend get WSO2 tokens itself, so
-users only ever handle the OpenGate token, is on the roadmap. See
-[ARCHITECTURE.md §6](ARCHITECTURE.md#6-known-gaps--next-steps).)
+To act in WSO2, the backend uses **its own** WSO2 token for a service account
+(see [§4.4](#44-how-opengate-talks-to-wso2)). An `X-WSO2-Authorization` header
+from a client is ignored.
 
 ### What happens inside `POST /applications`
 
-1. OpenGate checks your OpenGate token, the WSO2 token header, and the `name`.
+1. OpenGate checks your OpenGate token and the `name`.
 2. It calls WSO2 `POST /applications` with `throttlingPolicy: "Unlimited"`
    and `tokenType: "JWT"`.
 3. If WSO2 rejects the request, its status code is returned to you unchanged
@@ -223,44 +278,39 @@ This returns WSO2's API list unchanged. It only shows APIs that have been
 **published** and are publicly visible. If the list is empty, publish one in the
 [WSO2 Publisher](https://localhost:9443/publisher) first.
 
-### 4.4 Get a WSO2 token
+### 4.4 How OpenGate talks to WSO2
 
-> These steps follow WSO2 API Manager 4.x's REST API docs. They haven't been
-> run against this stack yet, so check them against your WSO2 version.
+There's nothing to do here as a user: the backend gets its own WSO2 token.
 
-First, register an OAuth client with WSO2 (one-time). This uses the WSO2
-admin login (`admin` / `admin` by default):
+On the first call that needs WSO2, the backend:
 
-```bash
-CLIENT=$(curl -sk -u admin:admin \
-  -H 'Content-Type: application/json' \
-  https://localhost:9443/client-registration/v0.17/register \
-  -d '{
-        "callbackUrl": "www.example.com",
-        "clientName": "opengate_devportal",
-        "owner": "admin",
-        "grantType": "client_credentials password refresh_token",
-        "saasApp": true
-      }')
-CLIENT_ID=$(echo "$CLIENT" | jq -r .clientId)
-CLIENT_SECRET=$(echo "$CLIENT" | jq -r .clientSecret)
-```
+1. Registers an OAuth client named `opengate_backend` with WSO2 (dynamic client
+   registration), signing in as `WSO2_USERNAME` / `WSO2_PASSWORD`. If that
+   client already exists, WSO2 returns it. To use a client you registered
+   yourself, set `WSO2_CLIENT_ID` and `WSO2_CLIENT_SECRET` instead.
+2. Asks WSO2's `/oauth2/token` for a token for that account (password grant)
+   with the scopes `apim:subscribe apim:app_manage apim:sub_manage`.
 
-Then request a token that has the Developer Portal application scopes:
+The token is cached and refreshed a minute before it expires. If WSO2 rejects
+it anyway (say, WSO2's data was reset), the backend gets a fresh one and
+retries the call once. If no token can be had (wrong WSO2 password, WSO2 down),
+the call fails with `502 OpenGate couldn't authenticate with WSO2`, and the
+backend logs the reason.
 
-```bash
-WSO2_TOKEN=$(curl -sk -u "$CLIENT_ID:$CLIENT_SECRET" \
-  https://localhost:9443/oauth2/token \
-  -d 'grant_type=password&username=admin&password=admin&scope=apim:subscribe apim:app_manage' \
-  | jq -r .access_token)
-```
+All applications are created in WSO2 under this one account. OpenGate's
+database records which OpenGate user owns each one, and every call checks that
+before touching WSO2. One consequence: application names must be unique across
+all OpenGate users, because WSO2 enforces unique names per account.
+
+Compose uses `admin` / `admin`, WSO2's out-of-the-box login. For anything
+shared, create a dedicated WSO2 user with the `Internal/subscriber` role, and
+set `WSO2_USERNAME` and `WSO2_PASSWORD` in `.env`.
 
 ### 4.5 Create an application
 
 ```bash
 curl -s $API/applications \
   -H "Authorization: Bearer $TOKEN" \
-  -H "X-WSO2-Authorization: Bearer $WSO2_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"weather-app","description":"My first app"}'
 ```
@@ -299,8 +349,7 @@ exist. That way, the API never confirms that someone else's app exists.
 
 ```bash
 curl -s -X DELETE $API/applications/6ae985a7348dc636274f99de \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-WSO2-Authorization: Bearer $WSO2_TOKEN"
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 - Status `204`, with no body.
@@ -313,26 +362,60 @@ curl -s -X DELETE $API/applications/6ae985a7348dc636274f99de \
 Open http://localhost:3000. The dashboard calls the backend from the Next.js
 server, so your browser only ever talks to `:3000` and never sees a token.
 
-1. **Create an account** (or **Sign in**). Your session lasts as long as the
-   OpenGate token, 15 minutes. After that you're asked to sign in again
-   and then sent back to the page you were on.
-2. **APIs** lists the public APIs in WSO2. Search by name, description,
-   context or provider.
-3. **Settings**: paste a WSO2 token ([§4.4](#44-get-a-wso2-token)). It's
-   kept in an httpOnly cookie for one hour and cleared when you sign out.
-   You need it for anything that changes WSO2: creating, editing or deleting
-   applications, keys, and subscriptions.
-   Settings is also where you **change your password**.
+Navigation is a sidebar (a slide-out menu on phones). The look is light by
+default; switch to dark, or to follow your device, from the sidebar or
+**Settings → Appearance**.
+
+1. **Create an account** (or **Sign in**). You land on **Overview**: your
+   numbers (applications, subscriptions, apps with keys, APIs available), a
+   getting-started checklist that ticks itself off, your recent applications
+   and featured APIs. Your session lasts as long as the OpenGate token, 15
+   minutes. After that you're asked to sign in again and then sent back to
+   the page you were on.
+2. **API catalog** lists the public APIs in WSO2, with an icon and colour per
+   category. Search by name, description, context or tag, or filter by
+   category. Open one to see its **Endpoints**: each one's
+   parameters, request body, example responses, and a ready-to-copy `curl`
+   that goes through the gateway.
+3. **Settings** is where you **change your password**. There's no WSO2
+   token to paste: the backend handles WSO2 itself ([§4.4](#44-how-opengate-talks-to-wso2)).
 4. **Applications → New application** creates the app in WSO2 and opens its
    page. Pick a **throttling policy** from WSO2's application policies (or
    keep Unlimited). From the app's page you can **Edit** or delete it, and
    **Generate keys** for production or sandbox. Copy the consumer secret
-   straight away: it's shown only once. If it's lost, **Regenerate secret**
-   issues a new one and the old one stops working. The applications list
+   straight away: it's shown only once. If it's lost, **Delete keys** and
+   generate new ones. That revokes the old secret and every access token made
+   from it. (**Regenerate secret** is meant for this too, but fails on WSO2
+   4.7.0; see [§8](#8-troubleshooting).) The applications list
    can be searched by name, description or policy.
 5. Open an API and use **Subscribe** to let one of your applications call it
    on a chosen tier. The application's page lists its subscriptions and
    lets you unsubscribe.
+6. To call a subscribed API, use **Get access token** under the app's keys.
+   Right after generating keys it's one click; later, paste the consumer
+   secret. Send the token as `Authorization: Bearer <token>` to the API's
+   gateway URL (shown on the API's page). Tokens last an hour.
+
+### 4.9 Call a subscribed API
+
+With an application subscribed to an API and keys generated, ask OpenGate for
+an access token. `keyMappingId` comes from `GET /applications/:id/keys`, and
+the consumer secret is the one shown when the keys were generated (OpenGate
+doesn't store it):
+
+```bash
+ACCESS=$(curl -s $API/applications/$APP_ID/keys/$KEY_MAPPING_ID/token \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"consumerSecret\":\"$CONSUMER_SECRET\"}" | jq -r .token.accessToken)
+
+curl -sk https://localhost:8243/pizzashack/1.0.0/menu -H "Authorization: Bearer $ACCESS"
+```
+
+A wrong secret gives `400`. A gateway `401` (`900901 Invalid Credentials`)
+means the token is missing or expired: note that the consumer key or secret
+themselves are not tokens. A gateway `403` means the app isn't subscribed to
+that API.
 
 ---
 
@@ -347,22 +430,25 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | `GET` | `/openapi.json` | none | none | `200` OpenAPI 3.1 document |
 | `GET` | `/apis` | none | none | `200` WSO2 API list |
 | `GET` | `/apis/:id` | none | none | `200` WSO2 API details |
+| `GET` | `/apis/:id/operations` | none | none | `200 {operations}`: each endpoint's method, path, summary, parameters, request body fields and example responses, from the API's OpenAPI definition |
 | `POST` | `/auth/register` | none | `{email, password}` | `201 {user}` |
 | `POST` | `/auth/login` | none | `{email, password}` | `200 {accessToken, tokenType, expiresIn, user}` |
 | `GET` | `/auth/me` | `Authorization` | none | `200 {user}` |
 | `POST` | `/auth/password` | `Authorization` | `{currentPassword, newPassword}` | `204` |
-| `GET` | `/throttling-policies/:level` | `Authorization`, `X-WSO2-Authorization` | none (`level` = `application` \| `subscription`) | `200 {policies}` |
-| `POST` | `/applications` | `Authorization`, `X-WSO2-Authorization` | `{name, description?, throttlingPolicy? = "Unlimited"}` | `201 {application}` |
+| `GET` | `/throttling-policies/:level` | `Authorization` | none (`level` = `application` \| `subscription`) | `200 {policies}` |
+| `POST` | `/applications` | `Authorization` | `{name, description?, throttlingPolicy? = "Unlimited"}` | `201 {application}` |
 | `GET` | `/applications` | `Authorization` | none | `200 {applications}` |
 | `GET` | `/applications/:id` | `Authorization` | none | `200 {application}` |
-| `PATCH` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | `{name?, description?, throttlingPolicy?}` | `200 {application}` |
-| `DELETE` | `/applications/:id` | `Authorization`, `X-WSO2-Authorization` | none | `204` |
-| `GET` | `/applications/:id/keys` | `Authorization`, `X-WSO2-Authorization` | none | `200 {keys}` (no secrets) |
-| `POST` | `/applications/:id/keys` | `Authorization`, `X-WSO2-Authorization` | `{keyType: "PRODUCTION" \| "SANDBOX"}` | `201 {key}` incl. `consumerSecret`, shown once |
-| `POST` | `/applications/:id/keys/:keyMappingId/regenerate-secret` | `Authorization`, `X-WSO2-Authorization` | none | `200 {key: {consumerKey, consumerSecret}}`, old secret revoked |
-| `GET` | `/applications/:id/subscriptions` | `Authorization`, `X-WSO2-Authorization` | none | `200 {subscriptions}` |
-| `POST` | `/applications/:id/subscriptions` | `Authorization`, `X-WSO2-Authorization` | `{apiId, throttlingPolicy?}` | `201 {subscription}` |
-| `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | `Authorization`, `X-WSO2-Authorization` | none | `204` |
+| `PATCH` | `/applications/:id` | `Authorization` | `{name?, description?, throttlingPolicy?}` | `200 {application}` |
+| `DELETE` | `/applications/:id` | `Authorization` | none | `204` |
+| `GET` | `/applications/:id/keys` | `Authorization` | none | `200 {keys}` (no secrets) |
+| `POST` | `/applications/:id/keys` | `Authorization` | `{keyType: "PRODUCTION" \| "SANDBOX"}` | `201 {key}` incl. `consumerSecret`, shown once |
+| `DELETE` | `/applications/:id/keys/:keyMappingId` | `Authorization` | none | `204`; revokes the secret and its tokens. `404` if the app has no such keys |
+| `POST` | `/applications/:id/keys/:keyMappingId/regenerate-secret` | `Authorization` | none | `200 {key: {consumerKey, consumerSecret}}`, old secret revoked. Currently fails on WSO2 4.7.0 (see §8). |
+| `POST` | `/applications/:id/keys/:keyMappingId/token` | `Authorization` | `{consumerSecret}` | `200 {token: {accessToken, tokenType, expiresIn, scopes}}`; `400` if WSO2 refuses the secret |
+| `GET` | `/applications/:id/subscriptions` | `Authorization` | none | `200 {subscriptions}` |
+| `POST` | `/applications/:id/subscriptions` | `Authorization` | `{apiId, throttlingPolicy?}` | `201 {subscription}` |
+| `DELETE` | `/applications/:id/subscriptions/:subscriptionId` | `Authorization` | none | `204` |
 
 ---
 
@@ -381,14 +467,14 @@ request under that id, so quote it when reporting a problem.
 | Status | When |
 |--------|------|
 | `400` | Missing or invalid fields, password under 8 characters, malformed JSON |
-| `401` | Missing, invalid or expired OpenGate token. Wrong email or password. Missing `X-WSO2-Authorization` on a call that acts in WSO2. |
+| `401` | Missing, invalid or expired OpenGate token. Wrong email or password. |
 | `403` | Wrong current password on `/auth/password` |
 | `404` | Application not found, or it belongs to someone else |
 | `409` | Email already registered |
 | `413` | Request body over 100 kB |
 | `429` | Too many register, login or change-password attempts (wait 15 minutes) |
-| WSO2's status | WSO2 rejected the call (e.g. `401` bad WSO2 token, `409` duplicate app name). WSO2's response body is in `details`. |
-| `502` | WSO2 unreachable or timed out (10s), or WSO2 returned no application ID |
+| WSO2's status | WSO2 rejected the call (e.g. `409` duplicate app name, `403` missing permission for OpenGate's WSO2 account). WSO2's response body is in `details`. |
+| `502` | WSO2 unreachable or timed out (10s), WSO2 returned no application ID, or the backend couldn't get its own WSO2 token |
 | `500` | Unexpected server error. Details are logged by the backend, not returned; the body's `requestId` finds the log line. |
 
 ---
@@ -406,6 +492,7 @@ export MONGO_URI=mongodb://127.0.0.1:27017/opengate
 export JWT_SECRET="$(openssl rand -base64 48)"
 export WSO2_BASE_URL=https://localhost:9443/api/am/devportal/v3
 export WSO2_ALLOW_SELF_SIGNED=true   # WSO2 ships with a self-signed certificate
+export WSO2_USERNAME=admin WSO2_PASSWORD=admin   # the account OpenGate acts as in WSO2
 
 npm run dev      # tsx watch on src/index.ts, port 4000 (override with PORT)
 ```
@@ -430,6 +517,8 @@ add `ports: ["27017:27017"]` under `mongo`.
 | `JWT_SECRET` | yes (32+ bytes) | none |
 | `WSO2_BASE_URL` | no | `https://localhost:9443/api/am/devportal/v3` |
 | `WSO2_ALLOW_SELF_SIGNED` | no | `false` |
+| `WSO2_USERNAME`, `WSO2_PASSWORD` | yes | none (compose: `admin` / `admin`) |
+| `WSO2_CLIENT_ID`, `WSO2_CLIENT_SECRET` | no (both or neither) | none: an OAuth client is registered on first use |
 | `PORT` | no | `4000` |
 
 ### Dashboard
@@ -457,7 +546,8 @@ npm run dev      # http://localhost:3000
 | Every call returns `502 WSO2 is unreachable` | WSO2 isn't up or `WSO2_BASE_URL` is wrong. Inside compose the host is `wso2am`, not `localhost`. |
 | WSO2 calls fail with certificate errors | Set `WSO2_ALLOW_SELF_SIGNED=true` (compose already does). |
 | `401 Invalid or expired token` after a while | OpenGate tokens last 15 minutes. Log in again. |
-| `POST /applications` returns WSO2's `401` or `403` | The WSO2 token has expired or lacks the `apim:subscribe apim:app_manage` scopes. Get a new one ([§4.4](#44-get-a-wso2-token)). |
+| `502 OpenGate couldn't authenticate with WSO2` | The backend couldn't get its WSO2 token. Check `WSO2_USERNAME` / `WSO2_PASSWORD` and the backend log line *Failed to get a WSO2 token* ([§4.4](#44-how-opengate-talks-to-wso2)). |
+| WSO2 calls return `403` | OpenGate's WSO2 account lacks permission. Give it the `Internal/subscriber` role. |
+| **Regenerate secret** returns WSO2's `500` (`900967 General Error`) | WSO2 4.7.0's key manager rejects the secret update (its log shows *Error while generating new consumer secret … status code: 400*), even when called directly on WSO2. Until that's sorted, use **Delete keys** and generate new ones. |
 | `/apis` returns an empty list | No APIs are published (or none are public) in WSO2 yet. |
 | Dashboard says "Something went wrong" | The dashboard can't reach the backend. Check `docker compose ps` and that `BACKEND_URL` points at it (compose: `http://backend:4000`). |
-| Dashboard can't create or delete applications | Save a current WSO2 token on the Settings page. It's kept for one hour. |

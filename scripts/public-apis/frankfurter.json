@@ -1,0 +1,166 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Frankfurter",
+    "version": "1.0.0",
+    "description": "Currency exchange rates published by the European Central Bank, updated on working days. Docs: https://frankfurter.dev"
+  },
+  "x-opengate": {
+    "context": "/currency",
+    "backend": "https://api.frankfurter.dev/v1",
+    "tags": [
+      "finance",
+      "reference"
+    ]
+  },
+  "paths": {
+    "/latest": {
+      "get": {
+        "summary": "Latest exchange rates",
+        "parameters": [
+          {
+            "name": "base",
+            "in": "query",
+            "description": "Currency to convert from.",
+            "schema": {
+              "type": "string",
+              "default": "EUR"
+            },
+            "example": "USD"
+          },
+          {
+            "name": "symbols",
+            "in": "query",
+            "description": "Comma-separated currencies to return; all if left out.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "EUR,GBP,JPY"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "description": "Amount to convert.",
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rates for the latest working day",
+            "content": {
+              "application/json": {
+                "example": {
+                  "amount": 1,
+                  "base": "USD",
+                  "date": "2026-11-20",
+                  "rates": {
+                    "EUR": 0.90992,
+                    "GBP": 0.76192,
+                    "JPY": 158.64
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{date}": {
+      "get": {
+        "summary": "Exchange rates on a past date",
+        "description": "Weekends and holidays return the previous working day's rates. Data goes back to 1999-01-04.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "description": "Date as YYYY-MM-DD.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2024-01-15"
+          },
+          {
+            "name": "base",
+            "in": "query",
+            "description": "Currency to convert from.",
+            "schema": {
+              "type": "string",
+              "default": "EUR"
+            }
+          },
+          {
+            "name": "symbols",
+            "in": "query",
+            "description": "Comma-separated currencies to return.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "USD,GBP"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rates on that day",
+            "content": {
+              "application/json": {
+                "example": {
+                  "amount": 1,
+                  "base": "EUR",
+                  "date": "2024-01-15",
+                  "rates": {
+                    "GBP": 0.86075,
+                    "USD": 1.0945
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Date out of range or badly formatted"
+          }
+        }
+      }
+    },
+    "/currencies": {
+      "get": {
+        "summary": "Supported currencies",
+        "responses": {
+          "200": {
+            "description": "Currency codes and names",
+            "content": {
+              "application/json": {
+                "example": {
+                  "AUD": "Australian Dollar",
+                  "BRL": "Brazilian Real",
+                  "CAD": "Canadian Dollar",
+                  "CHF": "Swiss Franc",
+                  "CNY": "Chinese Renminbi Yuan",
+                  "CZK": "Czech Koruna",
+                  "DKK": "Danish Krone",
+                  "EUR": "Euro",
+                  "GBP": "British Pound",
+                  "HKD": "Hong Kong Dollar",
+                  "HUF": "Hungarian Forint",
+                  "IDR": "Indonesian Rupiah",
+                  "ILS": "Israeli New Shekel",
+                  "INR": "Indian Rupee",
+                  "ISK": "Icelandic Króna",
+                  "JPY": "Japanese Yen",
+                  "KRW": "South Korean Won",
+                  "MXN": "Mexican Peso",
+                  "MYR": "Malaysian Ringgit",
+                  "NOK": "Norwegian Krone"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

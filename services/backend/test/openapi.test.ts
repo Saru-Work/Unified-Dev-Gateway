@@ -5,6 +5,7 @@ import { openApiDocument } from "../src/openapi";
 import { UserTokenService } from "../src/security/UserTokenService";
 import {
   FakeWso2,
+  FakeWso2Token,
   InMemoryApplicationRepository,
   InMemoryUserRepository,
   TEST_SECRET,
@@ -58,6 +59,7 @@ describe("GET /openapi.json", () => {
       passwords: fakeHasher,
       tokens: new UserTokenService(TEST_SECRET),
       wso2: new FakeWso2(),
+      wso2Token: new FakeWso2Token(),
       log: () => {},
     });
     const stack = (app as unknown as { router: { stack: Layer[] } }).router.stack;

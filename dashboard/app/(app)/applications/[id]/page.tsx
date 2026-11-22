@@ -1,8 +1,11 @@
+import { AppWindow, CalendarClock, Gauge, Pencil } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { CopyButton } from "@/app/copy-button";
+import { PageHeader } from "@/app/ui/page-header";
 import { getApplication } from "@/lib/applications";
 import { formatDate } from "@/lib/format";
-import { Suspense } from "react";
 import { DeleteApplication } from "./delete-application";
 import { KeysSection } from "./keys-section";
 import { SubscriptionsSection } from "./subscriptions-section";
@@ -14,52 +17,63 @@ export async function generateMetadata({
   return { title: `${application.name} · OpenGate` };
 }
 
+function Fact({ icon: Icon, label, children }: { icon: typeof Gauge; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="icon-tile tone-slate size-9">
+        <Icon aria-hidden className="size-4" />
+      </span>
+      <div className="flex min-w-0 flex-col">
+        <span className="text-xs text-muted">{label}</span>
+        <span className="truncate text-sm font-medium">{children}</span>
+      </div>
+    </div>
+  );
+}
+
+function Id({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-muted">{label}</span>
+      <div className="flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-2 py-1 font-mono text-xs">{value}</code>
+        <CopyButton value={value} />
+      </div>
+    </div>
+  );
+}
+
 export default async function ApplicationPage({ params }: PageProps<"/applications/[id]">) {
   const application = await getApplication((await params).id);
 
-  const rows: [string, React.ReactNode][] = [
-    ["Description", application.description || <span className="text-muted">None</span>],
-    ["Throttling policy", application.throttlingPolicy],
-    ["Created", formatDate(application.createdAt)],
-    ["OpenGate ID", <code key="id" className="font-mono text-sm">{application.id}</code>],
-    [
-      "WSO2 application ID",
-      <code key="wso2" className="font-mono text-sm">{application.wso2ApplicationId}</code>,
-    ],
-  ];
-
   return (
     <>
-      <div>
-        <Link href="/applications" className="text-sm text-muted hover:text-foreground">
-          ← Applications
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold">{application.name}</h1>
+      <PageHeader
+        back={{ href: "/applications", label: "Applications" }}
+        icon={AppWindow}
+        title={application.name}
+        description={application.description || "No description"}
+        actions={
           <Link href={`/applications/${application.id}/edit`} className="button-secondary">
-            Edit
+            <Pencil aria-hidden className="size-4" /> Edit
           </Link>
+        }
+      />
+
+      <section className="card grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <Fact icon={Gauge} label="Throttling policy">{application.throttlingPolicy}</Fact>
+        <Fact icon={CalendarClock} label="Created">{formatDate(application.createdAt)}</Fact>
+        <div className="md:col-span-2 grid gap-3 sm:grid-cols-2">
+          <Id label="OpenGate ID" value={application.id} />
+          <Id label="WSO2 application ID" value={application.wso2ApplicationId} />
         </div>
-      </div>
+      </section>
 
-      <dl className="card grid gap-x-6 gap-y-3 sm:grid-cols-[max-content_1fr]">
-        {rows.map(([label, value]) => (
-          <div key={label} className="contents">
-            <dt className="text-sm font-medium text-muted">{label}</dt>
-            <dd className="break-all">{value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <Suspense
-        fallback={<div className="h-40 animate-pulse rounded-lg bg-surface" aria-hidden />}
-      >
+      <Suspense fallback={<div className="h-48 animate-pulse rounded-xl bg-surface" aria-hidden />}>
         <KeysSection applicationId={application.id} />
       </Suspense>
 
-      <Suspense
-        fallback={<div className="h-24 animate-pulse rounded-lg bg-surface" aria-hidden />}
-      >
+      <Suspense fallback={<div className="h-28 animate-pulse rounded-xl bg-surface" aria-hidden />}>
         <SubscriptionsSection applicationId={application.id} />
       </Suspense>
 

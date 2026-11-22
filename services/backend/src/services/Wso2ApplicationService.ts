@@ -34,6 +34,17 @@ export interface ApplicationKey {
   supportedGrantTypes: string[];
 }
 
+/** An access token for calling subscribed APIs through the WSO2 gateway. */
+export interface AccessToken {
+  accessToken: string;
+  tokenType: "Bearer";
+  /** Seconds until it expires. */
+  expiresIn: number;
+  scopes: string[];
+}
+
+const ACCESS_TOKEN_VALIDITY_SECONDS = 3600;
+
 function str(value: unknown): string | undefined {
   return typeof value === "string" && value ? value : undefined;
 }
@@ -228,6 +239,66 @@ export class Wso2ApplicationService {
       throw new AppError(502, "WSO2 did not return the new secret");
     }
     return { consumerKey, consumerSecret };
+  }
+
+  /**
+   * Deletes one of the app's OAuth clients, so new keys can be generated for
+   * that environment. WSO2 revokes its secret and every token issued from it.
+   */
+  async deleteKeys(
+    ownerId: string,
+    id: string,
+    keyMappingId: string,
+    wso2Authorization: string,
+  ): Promise<void> {
+    const app = await this.get(ownerId, id);
+    // WSO2 answers 500, not 404, for an unknown key mapping; check first.
+    const keys = await this.listKeys(ownerId, id, wso2Authorization);
+    if (!keys.some((k) => k.keyMappingId === keyMappingId)) {
+      throw new AppError(404, "Keys not found");
+    }
+    await this.client.delete(
+      `/applications/${encodeURIComponent(app.wso2ApplicationId)}/oauth-keys/${encodeURIComponent(keyMappingId)}`,
+      wso2Authorization,
+    );
+  }
+
+  /**
+   * Gets an access token for one of the app's OAuth clients, so callers don't
+   * have to reach WSO2's token endpoint themselves. WSO2 needs the consumer
+   * secret, which OpenGate never stores, so the caller passes it in.
+   */
+  async generateToken(
+    ownerId: string,
+    id: string,
+    keyMappingId: string,
+    consumerSecret: string,
+    wso2Authorization: string,
+  ): Promise<AccessToken> {
+    const app = await this.get(ownerId, id);
+    let result;
+    try {
+      result = await this.client.post(
+        `/applications/${encodeURIComponent(app.wso2ApplicationId)}/oauth-keys/${encodeURIComponent(keyMappingId)}/generate-token`,
+        { consumerSecret, validityPeriod: ACCESS_TOKEN_VALIDITY_SECONDS, scopes: [] },
+        wso2Authorization,
+      );
+    } catch (err) {
+      // WSO2 answers 400 when the secret doesn't match the consumer key.
+      if (isAxiosError(err) && err.response?.status === 400) {
+        throw new AppError(400, "WSO2 refused the consumer secret for these keys");
+      }
+      throw err;
+    }
+    const data = (result.data ?? {}) as Record<string, unknown>;
+    const accessToken = str(data.accessToken);
+    if (!accessToken) throw new AppError(502, "WSO2 did not return an access token");
+    const expiresIn =
+      typeof data.validityTime === "number" ? data.validityTime : ACCESS_TOKEN_VALIDITY_SECONDS;
+    const scopes = Array.isArray(data.tokenScopes)
+      ? data.tokenScopes.filter((s): s is string => typeof s === "string")
+      : [];
+    return { accessToken, tokenType: "Bearer", expiresIn, scopes };
   }
 
   /**

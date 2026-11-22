@@ -8,7 +8,10 @@ export const metadata: Metadata = { title: "Create an account · OpenGate" };
 export default function RegisterPage() {
   return (
     <>
-      <h1 className="text-2xl font-semibold">Create an account</h1>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
+        <p className="text-sm text-muted">Free, and it takes a minute.</p>
+      </div>
       <AuthForm
         action={register}
         submitLabel="Create account"

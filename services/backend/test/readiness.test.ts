@@ -6,6 +6,7 @@ import type { ReadinessCheck } from "../src/observability/readiness";
 import { UserTokenService } from "../src/security/UserTokenService";
 import {
   FakeWso2,
+  FakeWso2Token,
   InMemoryApplicationRepository,
   InMemoryUserRepository,
   TEST_SECRET,
@@ -21,6 +22,7 @@ async function serve(readinessChecks: Record<string, ReadinessCheck>) {
     passwords: fakeHasher,
     tokens: new UserTokenService(TEST_SECRET),
     wso2: new FakeWso2(),
+    wso2Token: new FakeWso2Token(),
     log: (entry) => logs.push(entry),
     readinessChecks,
   });

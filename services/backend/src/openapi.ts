@@ -11,7 +11,6 @@ const ok = (description: string, schema?: unknown) =>
 const error = (description: string) => ok(description, ref("Error"));
 
 const user = [{ openGate: [] }];
-const userAndWso2 = [{ openGate: [], wso2: [] }];
 const idParam = { name: "id", in: "path", required: true, schema: { type: "string" } };
 
 const errors = {
@@ -28,17 +27,12 @@ export const openApiDocument = {
     version: "1.0.0",
     description:
       "Developer gateway in front of WSO2 API Manager. WSO2 errors are passed through " +
-      "with their status, and WSO2's body in `details`.",
+      "with their status, and WSO2's body in `details`. OpenGate calls WSO2 with its own " +
+      "service account, so clients only ever send their OpenGate token.",
   },
   components: {
     securitySchemes: {
       openGate: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
-      wso2: {
-        type: "apiKey",
-        in: "header",
-        name: "X-WSO2-Authorization",
-        description: "`Bearer <WSO2 token>`, forwarded unchanged to WSO2.",
-      },
     },
     schemas: {
       Error: {
@@ -71,6 +65,64 @@ export const openApiDocument = {
           description: { type: "string" },
           throttlingPolicy: { type: "string" },
           createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      ApiOperation: {
+        type: "object",
+        required: ["method", "path", "parameters", "responses"],
+        properties: {
+          method: { type: "string", examples: ["GET"] },
+          path: { type: "string", examples: ["/posts/{id}"] },
+          summary: { type: "string" },
+          description: { type: "string" },
+          parameters: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["name", "in", "required"],
+              properties: {
+                name: { type: "string" },
+                in: { enum: ["path", "query", "header", "cookie"] },
+                required: { type: "boolean" },
+                description: { type: "string" },
+                type: { type: "string", examples: ["integer", "array of string"] },
+                enum: { type: "array", items: { type: "string" } },
+                example: {},
+                default: {},
+              },
+            },
+          },
+          requestBody: {
+            type: "object",
+            required: ["contentType", "required", "fields"],
+            properties: {
+              contentType: { type: "string" },
+              required: { type: "boolean" },
+              description: { type: "string" },
+              fields: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["name", "required"],
+                  properties: {
+                    name: { type: "string" },
+                    required: { type: "boolean" },
+                    type: { type: "string" },
+                    description: { type: "string" },
+                  },
+                },
+              },
+              example: {},
+            },
+          },
+          responses: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["status"],
+              properties: { status: { type: "string" }, description: { type: "string" }, example: {} },
+            },
+          },
         },
       },
       ApplicationKey: {
@@ -130,13 +182,33 @@ export const openApiDocument = {
       get: { summary: "This document", responses: { "200": ok("OpenAPI 3.1", { type: "object" }) } },
     },
     "/apis": {
-      get: { summary: "Public APIs published in WSO2 (WSO2's response, relayed)", responses: { "200": ok("WSO2 API list", { type: "object" }) } },
+      get: {
+        summary: "Public APIs published in WSO2 (WSO2's response, relayed)",
+        parameters: [
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 0, maximum: 1000 }, description: "Page size; WSO2's default is 25" },
+          { name: "offset", in: "query", schema: { type: "integer", minimum: 0 } },
+        ],
+        responses: { "200": ok("WSO2 API list", { type: "object" }), "400": errors["400"] },
+      },
     },
     "/apis/{id}": {
       get: {
         summary: "One WSO2 API, including its subscription tiers",
         parameters: [idParam],
         responses: { "200": ok("WSO2 API", { type: "object" }), "404": errors["404"] },
+      },
+    },
+    "/apis/{id}/operations": {
+      get: {
+        summary: "The API's endpoints, parameters and examples, read from its OpenAPI definition in WSO2",
+        parameters: [idParam],
+        responses: {
+          "200": ok("Operations", {
+            type: "object",
+            properties: { operations: { type: "array", items: ref("ApiOperation") } },
+          }),
+          "404": errors["404"],
+        },
       },
     },
     "/auth/register": {
@@ -198,7 +270,7 @@ export const openApiDocument = {
     "/throttling-policies/{level}": {
       get: {
         summary: "WSO2 throttling policies at one level",
-        security: userAndWso2,
+        security: user,
         parameters: [
           { name: "level", in: "path", required: true, schema: { enum: ["application", "subscription"] } },
         ],
@@ -220,7 +292,7 @@ export const openApiDocument = {
       },
       post: {
         summary: "Create an application in WSO2 and record you as its owner",
-        security: userAndWso2,
+        security: user,
         requestBody: body({
           type: "object",
           required: ["name"],
@@ -248,7 +320,7 @@ export const openApiDocument = {
       },
       patch: {
         summary: "Rename, re-describe or change the policy of an application",
-        security: userAndWso2,
+        security: user,
         requestBody: body({
           type: "object",
           minProperties: 1,
@@ -258,7 +330,7 @@ export const openApiDocument = {
       },
       delete: {
         summary: "Delete the application from WSO2 and OpenGate",
-        security: userAndWso2,
+        security: user,
         responses: { "204": ok("Deleted"), "401": errors["401"], "404": errors["404"], "502": errors["502"] },
       },
     },
@@ -266,12 +338,12 @@ export const openApiDocument = {
       parameters: [idParam],
       get: {
         summary: "The application's OAuth clients (never secrets)",
-        security: userAndWso2,
+        security: user,
         responses: { "200": ok("Keys", { type: "object", properties: { keys: { type: "array", items: ref("ApplicationKey") } } }), "401": errors["401"], "404": errors["404"] },
       },
       post: {
         summary: "Generate client-credentials keys; the secret is returned only here",
-        security: userAndWso2,
+        security: user,
         requestBody: body({ type: "object", required: ["keyType"], properties: { keyType: { enum: ["PRODUCTION", "SANDBOX"] } } }),
         responses: {
           "201": ok("Generated", { type: "object", properties: { key: ref("ApplicationKey") } }),
@@ -280,11 +352,21 @@ export const openApiDocument = {
         },
       },
     },
+    "/applications/{id}/keys/{keyMappingId}": {
+      parameters: [idParam, { name: "keyMappingId", in: "path", required: true, schema: { type: "string" } }],
+      delete: {
+        summary: "Delete one environment's keys so new ones can be generated",
+        description:
+          "WSO2 revokes the consumer secret and every access token issued from these keys.",
+        security: user,
+        responses: { "204": ok("Deleted"), "401": errors["401"], "404": errors["404"], "502": errors["502"] },
+      },
+    },
     "/applications/{id}/keys/{keyMappingId}/regenerate-secret": {
       parameters: [idParam, { name: "keyMappingId", in: "path", required: true, schema: { type: "string" } }],
       post: {
         summary: "Replace a consumer secret; the old one stops working",
-        security: userAndWso2,
+        security: user,
         responses: {
           "200": ok("New secret", {
             type: "object",
@@ -296,16 +378,55 @@ export const openApiDocument = {
         },
       },
     },
+    "/applications/{id}/keys/{keyMappingId}/token": {
+      parameters: [idParam, { name: "keyMappingId", in: "path", required: true, schema: { type: "string" } }],
+      post: {
+        summary: "Get an access token for calling subscribed APIs with these keys",
+        description:
+          "OpenGate doesn't store consumer secrets, so send the one shown when the keys were generated. " +
+          "Use the token as `Authorization: Bearer …` on the WSO2 gateway.",
+        security: user,
+        requestBody: {
+          required: true,
+          content: json({
+            type: "object",
+            required: ["consumerSecret"],
+            properties: { consumerSecret: { type: "string" } },
+          }),
+        },
+        responses: {
+          "200": ok("Access token", {
+            type: "object",
+            properties: {
+              token: {
+                type: "object",
+                required: ["accessToken", "tokenType", "expiresIn", "scopes"],
+                properties: {
+                  accessToken: { type: "string" },
+                  tokenType: { const: "Bearer" },
+                  expiresIn: { type: "integer", description: "Seconds" },
+                  scopes: { type: "array", items: { type: "string" } },
+                },
+              },
+            },
+          }),
+          "400": error("Missing consumerSecret, or WSO2 refused it for these keys"),
+          "401": errors["401"],
+          "404": errors["404"],
+          "502": errors["502"],
+        },
+      },
+    },
     "/applications/{id}/subscriptions": {
       parameters: [idParam],
       get: {
         summary: "The APIs this application is subscribed to",
-        security: userAndWso2,
+        security: user,
         responses: { "200": ok("Subscriptions", { type: "object", properties: { subscriptions: { type: "array", items: ref("Subscription") } } }), "401": errors["401"], "404": errors["404"] },
       },
       post: {
         summary: "Subscribe the application to an API",
-        security: userAndWso2,
+        security: user,
         requestBody: body({
           type: "object",
           required: ["apiId"],
@@ -322,7 +443,7 @@ export const openApiDocument = {
       parameters: [idParam, { name: "subscriptionId", in: "path", required: true, schema: { type: "string" } }],
       delete: {
         summary: "Unsubscribe (404 unless the subscription belongs to this application)",
-        security: userAndWso2,
+        security: user,
         responses: { "204": ok("Removed"), "401": errors["401"], "404": errors["404"] },
       },
     },

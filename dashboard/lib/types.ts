@@ -98,3 +98,29 @@ export interface Subscription {
   throttlingPolicy?: string;
   status?: string;
 }
+
+/** One endpoint of an API, as the backend reads it from the API's OpenAPI definition. */
+export interface ApiOperation {
+  method: string;
+  path: string;
+  summary?: string;
+  description?: string;
+  parameters: {
+    name: string;
+    in: "path" | "query" | "header" | "cookie";
+    required: boolean;
+    description?: string;
+    type?: string;
+    enum?: string[];
+    example?: unknown;
+    default?: unknown;
+  }[];
+  requestBody?: {
+    contentType: string;
+    required: boolean;
+    description?: string;
+    fields: { name: string; required: boolean; type?: string; description?: string }[];
+    example?: unknown;
+  };
+  responses: { status: string; description?: string; example?: unknown }[];
+}

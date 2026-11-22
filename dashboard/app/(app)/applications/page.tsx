@@ -1,5 +1,8 @@
+import { AppWindow, CalendarClock, Gauge, Plus, Search, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EmptyState } from "@/app/ui/empty-state";
+import { PageHeader } from "@/app/ui/page-header";
 import { backend } from "@/lib/backend";
 import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/session";
@@ -29,64 +32,74 @@ export default async function ApplicationsPage({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Applications</h1>
-          <p className="text-sm text-muted">
-            Applications you&apos;ve created in WSO2 API Manager.
-          </p>
-        </div>
-        <Link href="/applications/new" className="button-primary">
-          New application
-        </Link>
-      </div>
+      <PageHeader
+        icon={AppWindow}
+        title="Applications"
+        description="Each application has its own keys, access tokens and API subscriptions."
+        actions={
+          <Link href="/applications/new" className="button-primary">
+            <Plus aria-hidden className="size-4" /> New application
+          </Link>
+        }
+      />
 
       {all.length > 0 && (
-        <form role="search" className="flex max-w-md gap-2">
+        <form role="search" className="relative max-w-xl">
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
-            className="field"
+            className="field py-2.5 pl-9"
             type="search"
             name="q"
             defaultValue={query}
             placeholder="Search by name, description or policy"
             aria-label="Search applications"
           />
-          <button type="submit" className="button-secondary">
-            Search
-          </button>
         </form>
       )}
 
       {query && applications.length === 0 ? (
-        <div className="card flex flex-col items-start gap-2">
-          <p className="font-medium">No applications match “{query}”</p>
-          <Link href="/applications" className="link text-sm">
-            Show all applications
-          </Link>
-        </div>
+        <EmptyState
+          icon={SearchX}
+          title={`No applications match “${query}”`}
+          action={<Link href="/applications" className="button-secondary">Show all applications</Link>}
+        />
       ) : applications.length === 0 ? (
-        <div className="card flex flex-col items-start gap-2">
-          <p className="font-medium">No applications yet</p>
-          <p className="text-sm text-muted">
-            Create an application to get credentials for calling the APIs
-            published in WSO2.
-          </p>
-        </div>
+        <EmptyState
+          icon={AppWindow}
+          title="No applications yet"
+          action={
+            <Link href="/applications/new" className="button-primary">
+              <Plus aria-hidden className="size-4" /> Create your first application
+            </Link>
+          }
+        >
+          An application gets you keys and access tokens for calling the APIs in the catalog.
+        </EmptyState>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {applications.map((app) => (
             <li key={app.id}>
-              <Link
-                href={`/applications/${app.id}`}
-                className="card flex flex-col gap-1 hover:bg-surface"
-              >
-                <span className="font-medium">{app.name}</span>
-                {app.description && (
-                  <span className="text-sm text-muted">{app.description}</span>
-                )}
-                <span className="text-xs text-muted">
-                  Created {formatDate(app.createdAt)} · {app.throttlingPolicy}
-                </span>
+              <Link href={`/applications/${app.id}`} className="card card-link flex h-full flex-col gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="icon-tile tone-indigo size-11">
+                    <AppWindow aria-hidden className="size-5" />
+                  </span>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate font-semibold">{app.name}</span>
+                    <span className="line-clamp-2 text-sm text-muted">
+                      {app.description || "No description"}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarClock aria-hidden className="size-3.5" />
+                    {formatDate(app.createdAt)}
+                  </span>
+                  <span className="badge-accent">
+                    <Gauge aria-hidden className="size-3" /> {app.throttlingPolicy}
+                  </span>
+                </div>
               </Link>
             </li>
           ))}
