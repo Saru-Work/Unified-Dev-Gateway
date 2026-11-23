@@ -44,6 +44,7 @@ async function main() {
     wso2,
     wso2Token,
     usage,
+    trustProxy: config.trustProxy,
     readinessChecks: {
       mongo: async () => {
         const db = mongoose.connection.db;

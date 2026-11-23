@@ -1,24 +1,39 @@
 # OpenGate: Unified Dev Gateway
 
-OpenGate is a developer gateway that sits in front of **WSO2 API Manager**.
-Developers create an OpenGate account, browse the published APIs, and create
-WSO2 applications. OpenGate keeps track of who owns each application, so
-every developer sees only their own.
+OpenGate is an **API marketplace** built on **WSO2 API Manager**. Developers
+sign up once, browse a documented catalog of APIs, and call any of them with
+one set of credentials, instead of signing up with every provider. For APIs
+whose provider needs a key, OpenGate holds the key and the gateway adds it to
+each call, so developers never handle it.
+
+WSO2 does the heavy lifting (security, subscriptions, rate limits, the
+gateway). OpenGate is the front door: accounts, the catalog and its docs,
+self-service applications, keys and tokens, and per-application usage. It
+does all the WSO2 work with its own service account and records who owns each
+application, so every developer sees only their own and never needs a WSO2
+login.
 
 ```
- you ──▶ OpenGate backend (:4000) ──▶ WSO2 API Manager (:9443)
-               │
-               └──▶ MongoDB (accounts + application ownership)
+ Browser ──▶ dashboard (:3000) ──▶ backend (:4000) ──▶ WSO2 DevPortal API (:9443)
+                                       │    ▲
+                                       │    └── gateway usage log (read-only)
+                                       └──▶ MongoDB (accounts, ownership, usage)
+
+ Your app ──(access token)──▶ WSO2 gateway (:8243) ──(+ provider key)──▶ upstream API
 ```
 
 This guide covers running the stack and using it end to end. For the
 internals (layers, data model, security, error handling), see
-[ARCHITECTURE.md](ARCHITECTURE.md).
+[ARCHITECTURE.md](ARCHITECTURE.md); for a non-technical overview, see
+[whatisopengate.txt](whatisopengate.txt).
 
-> **Status:** the backend API is working and tested. The dashboard on `:3000`
-> covers sign-up, sign-in, browsing APIs, and creating, viewing and deleting
-> applications. This guide uses the HTTP API (`curl`) so every step is visible;
-> the same flow works in the dashboard (see [§4.8](#48-using-the-dashboard)).
+> **Status:** the backend API and the dashboard work end to end with WSO2
+> 4.7.0 (the backend's tests use a fake WSO2; [ARCHITECTURE.md §5](ARCHITECTURE.md#5-wso2-api-manager)
+> lists what has been run live). The dashboard on `:3000` covers sign-up and
+> sign-in, the API catalog with per-endpoint docs, applications, subscriptions,
+> keys and access tokens, usage charts, and a user guide at `/docs`. This
+> guide uses the HTTP API (`curl`) so every step is visible; the same flow
+> works in the dashboard (see [§4.8](#48-using-the-dashboard)).
 
 ---
 
@@ -32,6 +47,7 @@ internals (layers, data model, security, error handling), see
 6. [Errors](#6-errors)
 7. [Local development (without Docker)](#7-local-development-without-docker)
 8. [Troubleshooting](#8-troubleshooting)
+9. [Deploying to a VPS](#9-deploying-to-a-vps)
 
 ---
 
@@ -238,8 +254,15 @@ Check each provider's terms allow access through a gateway like this.
  │  application │  WSO2 token, then records you as its owner in MongoDB
  └──────┬───────┘
         ▼
- ┌──────────────┐  GET /applications, keys, subscriptions, …
- │ 5. Manage    │  Only your own apps are visible to you
+ ┌──────────────┐  POST /applications/:id/subscriptions, /keys, …/token
+ │ 5. Subscribe │  Subscribe the app to APIs, generate keys, get an
+ │   and get a  │  access token (only your own apps are visible to you)
+ │    token     │
+ └──────┬───────┘
+        ▼
+ ┌──────────────┐  https://<gateway>:8243/<context>/<version>/…
+ │ 6. Call APIs │  WSO2's gateway checks the token and the subscription,
+ │              │  adds any provider key, and logs the call for usage
  └──────────────┘
 ```
 
@@ -256,8 +279,8 @@ from a client is ignored.
 ### What happens inside `POST /applications`
 
 1. OpenGate checks your OpenGate token and the `name`.
-2. It calls WSO2 `POST /applications` with `throttlingPolicy: "Unlimited"`
-   and `tokenType: "JWT"`.
+2. It calls WSO2 `POST /applications` with the chosen `throttlingPolicy`
+   (default `"Unlimited"`) and `tokenType: "JWT"`, using its own WSO2 token.
 3. If WSO2 rejects the request, its status code is returned to you unchanged
    (e.g. `409` if the name is taken). If WSO2 can't be reached, you get `502`.
 4. If WSO2 accepts, OpenGate saves `{ owner: you, wso2ApplicationId, name, … }`
@@ -601,6 +624,7 @@ add `ports: ["27017:27017"]` under `mongo`.
 | `WSO2_USERNAME`, `WSO2_PASSWORD` | yes | none (compose: `admin` / `admin`) |
 | `WSO2_CLIENT_ID`, `WSO2_CLIENT_SECRET` | no (both or neither) | none: an OAuth client is registered on first use |
 | `USAGE_METRICS_LOG` | no | none: usage is off. Compose sets `/wso2-logs/apim_metrics.log` |
+| `TRUST_PROXY` | no | none: `X-Forwarded-For` is ignored. Compose sets `1` (the dashboard or nginx), so the login rate limit counts visitors, not the dashboard |
 | `PORT` | no | `4000` |
 
 ### Dashboard
@@ -613,7 +637,19 @@ npm run dev      # http://localhost:3000
 ```
 
 `npm run lint` runs ESLint and `npm run build` makes a production build
-(it also type-checks).
+(it also type-checks). The Docker image is a production build (Next's
+standalone server), so use `npm run dev` for hot reload.
+
+| Variable | Default | What it's for |
+|----------|---------|---------------|
+| `BACKEND_URL` | `http://localhost:4000` | Where the dashboard's server reaches the backend |
+| `PUBLIC_GATEWAY_URL` | `https://localhost:8243` | Gateway address in examples and the user guide |
+| `PUBLIC_PORTAL_URL` | `https://localhost:9443` | WSO2 host in the guide (`/oauth2/token`, `/publisher`) |
+| `PUBLIC_API_URL` | `http://localhost:4000` | OpenGate API address in the guide's automation section |
+
+The session cookie is `Secure` whenever the request arrived over HTTPS
+(nginx sends `X-Forwarded-Proto: https`), or always with
+`SESSION_COOKIE_SECURE=true`.
 
 ---
 
@@ -635,3 +671,145 @@ npm run dev      # http://localhost:3000
 | WSO2 logs *Error while decrypting … for API* | The data was encrypted with a different `[encryption]` key. WSO2's image generates a random key in every new container; `wso2-start.sh` keeps one key on the database volume (or use `WSO2_ENCRYPTION_KEY` in `.env`). Re-run `scripts/seed-public-apis.sh` to re-store provider keys if needed. |
 | `/apis` returns an empty list | No APIs are published (or none are public) in WSO2 yet. |
 | Dashboard says "Something went wrong" | The dashboard can't reach the backend. Check `docker compose ps` and that `BACKEND_URL` points at it (compose: `http://backend:4000`). |
+| Login says *Too many attempts* for everyone at once | The backend is counting every visitor as the dashboard. Check that nginx sets `X-Real-IP` (it's in `deploy/nginx/opengate.conf`) and the backend has `TRUST_PROXY=1` (compose sets it). |
+| Publisher sign-in redirects to `localhost` or `:9443` | `WSO2_HOSTNAME` isn't set, or WSO2 wasn't recreated after setting it: `docker compose up -d wso2am`. Look for *OpenGate: warning* lines in `docker compose logs wso2am`. |
+| Gateway answers `404` for every API on the server | The APIs are deployed to the `localhost` vhost. Re-run `scripts/seed-public-apis.sh` with `WSO2_GATEWAY_HOST` in `.env` (it redeploys to the new vhost); in the Publisher, deploy to the `gateway.example.com` vhost. |
+| `403` on `portal.example.com/carbon` or `/admin` | Your IP isn't in `/etc/nginx/opengate-admin-ips.conf`. Add `allow <your IP>;` and `sudo systemctl reload nginx`. |
+
+---
+
+## 9. Deploying to a VPS
+
+The same compose stack runs on a server, with nginx on the host in front of
+it. Docker binds every service to `127.0.0.1`, so nginx is the only way in.
+
+| Public address | Goes to | Who uses it |
+|----------------|---------|-------------|
+| `https://app.example.com` | dashboard | Developers |
+| `https://portal.example.com/publisher` | WSO2 Publisher | Whoever registers APIs |
+| `https://gateway.example.com` | WSO2 gateway | Applications calling APIs |
+| `https://api.example.com` | OpenGate REST API | Scripts and CI (optional) |
+
+WSO2's other consoles (`/carbon`, `/admin`) answer only to IP addresses you
+allow. Its DevPortal, SOAP admin services and client registration are never
+public: OpenGate is the developer portal, and an app made in WSO2's own
+DevPortal would have no OpenGate owner.
+
+### Server
+
+- Ubuntu 24.04 (or similar), **8 GB RAM**, 2–4 vCPU, 40 GB disk. WSO2 alone
+  wants about 4 GB, and the dashboard build needs headroom; add a few GB of
+  swap.
+- Docker Engine with the compose plugin, nginx, and certbot
+  (`sudo apt install nginx certbot python3-certbot-nginx`).
+- DNS `A` (and `AAAA`) records for the four names, pointing at the server.
+- Firewall: `sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable`.
+  (Docker-published ports bypass ufw, which is why compose binds them to
+  `127.0.0.1`.)
+
+### 1. Configure
+
+```bash
+git clone <your repo> opengate && cd opengate
+cp .env.example .env
+```
+
+In `.env` set:
+
+```bash
+JWT_SECRET=...                    # openssl rand -base64 48
+WSO2_ENCRYPTION_KEY=...           # openssl rand -hex 32; keep a copy off the server
+WSO2_ADMIN_PASSWORD=...           # WSO2's admin password
+WSO2_PASSWORD=...                 # the same value: the backend signs in as admin
+WSO2_HOSTNAME=portal.example.com
+WSO2_GATEWAY_HOST=gateway.example.com
+PUBLIC_GATEWAY_URL=https://gateway.example.com
+PUBLIC_PORTAL_URL=https://portal.example.com
+PUBLIC_API_URL=https://api.example.com
+NASA_API_KEY=...                  # optional; DEMO_KEY allows ~30 calls an hour
+```
+
+Set `WSO2_ADMIN_PASSWORD` **before WSO2's first start**: WSO2 creates the
+admin account from it on a fresh database. (On an existing database, change
+the password in `/carbon` first, then set it here to match.) Losing
+`WSO2_ENCRYPTION_KEY` makes every stored provider key unreadable.
+
+### 2. Start the stack
+
+```bash
+docker compose up --build -d
+docker compose ps        # wait until backend and dashboard are healthy (~3 minutes)
+docker compose logs wso2am | grep 'OpenGate: warning'   # should print nothing
+```
+
+### 3. nginx and certificates
+
+```bash
+sudo cp deploy/nginx/opengate.conf /etc/nginx/sites-available/opengate.conf
+sudo sed -i 's/example\.com/yourdomain.com/g' /etc/nginx/sites-available/opengate.conf
+echo "allow $(curl -s https://ifconfig.me);" | sudo tee /etc/nginx/opengate-admin-ips.conf
+
+sudo certbot certonly --nginx -d app.yourdomain.com -d portal.yourdomain.com \
+  -d gateway.yourdomain.com -d api.yourdomain.com
+sudo ln -s /etc/nginx/sites-available/opengate.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Run the `ifconfig.me` line from the machine you'll administer WSO2 from, or
+write your IP into the file by hand; one `allow` line per address. An empty
+file blocks `/carbon` and `/admin` for everyone. Drop the `api.` server block
+to keep the REST API private.
+
+### 4. Add APIs
+
+On the server, seed the sample APIs. They're deployed to the
+`WSO2_GATEWAY_HOST` vhost, so the dashboard shows
+`https://gateway.yourdomain.com/...` URLs:
+
+```bash
+scripts/seed-public-apis.sh
+```
+
+To let others register APIs in the Publisher, give each one their own account
+rather than `admin`: in `https://portal.yourdomain.com/carbon` (from an allowed
+IP) go to **Users and Roles → Add User**, with the `Internal/creator` and
+`Internal/publisher` roles. In the Publisher they:
+
+- create the API (an OpenAPI file gives OpenGate its endpoint docs),
+- for an upstream that needs a key, set it under **Endpoints → Endpoint
+  security → API Key**,
+- pick subscription tiers, deploy a revision to the **Default** gateway on the
+  `gateway.yourdomain.com` vhost, set visibility to **Public**, and publish.
+
+### 5. Check it
+
+```bash
+curl -s https://api.yourdomain.com/ready     # {"status":"ready",...}
+curl -sI https://portal.yourdomain.com/devportal/ | head -1   # 404
+curl -sI https://portal.yourdomain.com/carbon/ | head -1      # 403 from elsewhere
+```
+
+Then sign up at `https://app.yourdomain.com`, create an app, subscribe it to
+an API, get a token, and call the API with the `curl` from its page.
+
+### Keep it running
+
+- **Updates:** `git pull && docker compose up --build -d`.
+- **Backups:** the `mongo-data` and `wso2am-470-database` volumes, nightly and
+  off the server (e.g. `docker run --rm -v opengate_mongo-data:/v -v $PWD:/b
+  alpine tar czf /b/mongo-$(date +%F).tgz -C /v .`; the volume prefix is the
+  folder name). Keep `.env` safe too.
+- **Certificates** renew automatically (certbot's timer); nginx picks them up
+  on reload.
+- WSO2's embedded H2 database is fine to start with; move WSO2 to PostgreSQL
+  or MySQL before real traffic.
+- Check each provider's terms allow access through a public gateway like this.
+
+> `WSO2_HOSTNAME` and `proxyPort = 443` follow WSO2 4.7.0's reverse-proxy
+> guide, and the nginx headers match its example. Not yet verified on a live
+> server: the gateway vhost taken from `WSO2_GATEWAY_HOST`, and whether any
+> WSO2 component calls itself through the public hostname (and so through
+> nginx's blocked paths). `wso2-config/wso2-start.sh` warns if a setting it
+> expects is missing. Try the Publisher sign-in, the Admin portal, and one
+> gateway call before inviting anyone.
+

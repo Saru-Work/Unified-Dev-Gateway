@@ -20,10 +20,18 @@ services:
       # Optional: pin WSO2's encryption key (64 hex characters). Otherwise one
       # is kept on the database volume; see wso2-config/wso2-start.sh.
       WSO2_ENCRYPTION_KEY: ${WSO2_ENCRYPTION_KEY:-}
+      # Optional: public hostnames behind a reverse proxy on 443, e.g.
+      # portal.example.com (Publisher) and gateway.example.com (API calls).
+      WSO2_HOSTNAME: ${WSO2_HOSTNAME:-}
+      WSO2_GATEWAY_HOST: ${WSO2_GATEWAY_HOST:-}
+      # Optional: the admin password, kept in step with deployment.toml.
+      WSO2_ADMIN_PASSWORD: ${WSO2_ADMIN_PASSWORD:-}
     ports:
-      - "9443:9443"
-      - "8243:8243"
-      - "8280:8280"
+      # Loopback only: on a server, nginx is the public entry point (see
+      # deploy/nginx). Docker-published ports bypass host firewalls like ufw.
+      - "127.0.0.1:9443:9443"
+      - "127.0.0.1:8243:8243"
+      - "127.0.0.1:8280:8280"
     volumes:
       - wso2am-470-deployment:/home/wso2carbon/wso2am-4.7.0/repository/deployment/server
       - wso2am-470-database:/home/wso2carbon/wso2am-4.7.0/repository/database
@@ -66,7 +74,7 @@ services:
       dockerfile: Dockerfile
     container_name: backend
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       WSO2_BASE_URL: https://wso2am:9443/api/am/devportal/v3
       WSO2_ALLOW_SELF_SIGNED: "true"
@@ -79,6 +87,9 @@ services:
       WSO2_PASSWORD: ${WSO2_PASSWORD:-admin}
       WSO2_CLIENT_ID: ${WSO2_CLIENT_ID:-}
       WSO2_CLIENT_SECRET: ${WSO2_CLIENT_SECRET:-}
+      # One proxy hop: the dashboard (which forwards the visitor's IP) or nginx.
+      # Lets the login rate limit count visitors, not the dashboard.
+      TRUST_PROXY: "1"
     volumes:
       - wso2am-470-logs:/wso2-logs:ro
     networks:
@@ -106,9 +117,14 @@ services:
       dockerfile: Dockerfile
     container_name: dashboard
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       BACKEND_URL: http://backend:4000
+      # Addresses shown in the dashboard's examples and user guide. Unset,
+      # they're the local ones (https://localhost:8243 and so on).
+      PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:-}
+      PUBLIC_PORTAL_URL: ${PUBLIC_PORTAL_URL:-}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
     networks:
       - devgateway
     depends_on:

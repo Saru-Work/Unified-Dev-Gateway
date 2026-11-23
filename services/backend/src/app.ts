@@ -40,6 +40,8 @@ export interface AppDependencies {
   log?: Logger;
   /** Dependency checks behind GET /ready, e.g. { mongo, wso2 }. */
   readinessChecks?: Record<string, ReadinessCheck>;
+  /** Trusted proxy hops, so rate limits see the client's address (see config). */
+  trustProxy?: number;
 }
 
 /** Builds the Express app from its dependencies, so tests can inject fakes. */
@@ -60,6 +62,7 @@ export function createApp(deps: AppDependencies) {
   const log = deps.log ?? jsonLogger;
   const app = express();
   app.disable("x-powered-by");
+  if (deps.trustProxy !== undefined) app.set("trust proxy", deps.trustProxy);
   app.use(requestLogging(log));
   app.use(express.json({ limit: "100kb" }));
 

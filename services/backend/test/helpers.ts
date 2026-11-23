@@ -276,7 +276,9 @@ export class InMemoryUsageRepository implements IUsageRepository {
   }
 }
 
-export async function startTestServer(options: { usage?: IUsageRepository } = {}): Promise<TestServer> {
+export async function startTestServer(
+  options: { usage?: IUsageRepository; trustProxy?: number } = {},
+): Promise<TestServer> {
   const wso2 = new FakeWso2();
   const wso2Token = new FakeWso2Token();
   const tokens = new UserTokenService(TEST_SECRET);
@@ -291,6 +293,7 @@ export async function startTestServer(options: { usage?: IUsageRepository } = {}
     wso2,
     wso2Token,
     usage: options.usage,
+    trustProxy: options.trustProxy,
   });
 
   const server: Server = await new Promise((resolve) => {

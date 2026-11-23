@@ -1,13 +1,18 @@
 # OpenGate (Unified Dev Gateway): Architecture
 
-OpenGate puts its own developer-facing layer in front of **WSO2 API Manager**.
-Developers sign up with OpenGate and create WSO2 applications through the
-OpenGate backend. OpenGate records who owns each application, so a user only
-ever sees their own.
+OpenGate is an API marketplace built on **WSO2 API Manager**: one account,
+one catalog, one set of credentials for many APIs. WSO2 runs the APIs
+(security, subscriptions, throttling, the gateway); OpenGate is the
+developer-facing layer on top. Developers sign up with OpenGate, and the
+backend does every WSO2 operation for them with its own service account,
+recording who owns each application so a user only ever sees their own. For
+upstream APIs that need a provider key, the key lives in WSO2 and the gateway
+injects it, so developers only use their OpenGate-issued token.
 
-> Status: the backend is the working core. The dashboard is still the
-> Next.js starter template, and `packages/sdk` is an empty placeholder.
-> See [Known gaps](#known-gaps--next-steps).
+> Status: the backend and the dashboard are the working core, used end to
+> end against WSO2 4.7.0. `packages/sdk` and `services/sidecar` are empty
+> placeholders, and the CI workflow is empty. See
+> [Known gaps](#6-known-gaps-and-next-steps).
 
 ---
 
@@ -17,34 +22,48 @@ ever sees their own.
                          ┌──────────────────────────────────────────────┐
                          │          docker network: devgateway          │
                          │                                              │
- Browser ──:3000──────▶  │  dashboard (Next.js 16)                      │
-                         │                                              │
+ Browser ──:3000──────▶  │  dashboard (Next.js 16, server-side calls)   │
+                         │      │ BACKEND_URL                           │
+                         │      ▼                                       │
  API client ─:4000────▶  │  backend (Express 5 / Node 22) ──────┐       │
-                         │      │                               │       │
-                         │      │ mongodb://mongo:27017         │ HTTPS │
-                         │      ▼                               ▼       │
-                         │  mongo (MongoDB 8)       wso2am (WSO2 APIM   │
-                         │   users, applications     4.7.0) DevPortal   │
-                         │                           REST API v3        │
-                         └──────────────────────────────────────────────┘
-                                  WSO2 also exposes :9443 (portals/admin),
-                                  :8243 / :8280 (API gateway HTTPS / HTTP)
+                         │      │                ▲              │ HTTPS │
+                         │      │ mongodb://     │ apim_metrics │       │
+                         │      ▼ mongo:27017    │ .log (ro)    ▼       │
+                         │  mongo (MongoDB 8)    └──── wso2am (WSO2 APIM│
+                         │   users, applications,      4.7.0) DevPortal │
+                         │   usage events              REST API v3      │
+                         └───────────────────────────────────┬──────────┘
+ Your app ──access token──▶ :8243 WSO2 gateway ──────────────┘
+                            (+ provider key) ──▶ upstream APIs
+                                  WSO2 also exposes :9443 (portals/admin)
+                                  and :8280 (gateway HTTP)
 ```
 
-| Service     | Image / build          | Port(s)            | Role |
-|-------------|------------------------|--------------------|------|
-| `wso2am`    | `wso2/wso2am:4.7.0`    | 9443, 8243, 8280   | API Manager: publishes APIs, owns applications, keys, subscriptions, throttling, and the runtime gateway. |
-| `mongo`     | `mongo:8`              | internal only      | OpenGate's own data: user accounts and application ownership. |
-| `backend`   | `services/backend`     | 4000               | OpenGate API: authentication, ownership, and a typed facade over the WSO2 DevPortal API. |
-| `dashboard` | `dashboard`            | 3000               | Developer UI: sign-in, API catalogue, application management. |
+| Service       | Image / build          | Port(s)            | Role |
+|---------------|------------------------|--------------------|------|
+| `wso2am`      | `wso2/wso2am:4.7.0`    | 9443, 8243, 8280   | API Manager: publishes APIs, owns applications, keys, subscriptions, throttling, provider-key injection, and the runtime gateway. Started through `wso2-config/wso2-start.sh` (§5). |
+| `wso2am-init` | `busybox:1.37.0`       | none (one-shot)    | Hands the `solr` volume to WSO2's user before WSO2 starts. |
+| `mongo`       | `mongo:8`              | internal only      | OpenGate's own data: accounts, application ownership, usage events. |
+| `backend`     | `services/backend`     | 4000               | OpenGate API: authentication, ownership, a typed facade over the WSO2 DevPortal API, and the usage collector. |
+| `dashboard`   | `dashboard`            | 3000               | Developer UI: landing page, user guide, catalog, applications, keys, subscriptions, usage. |
 
-**Startup order** (from `docker-compose.yml`): `backend` waits until both
-`wso2am` (startup health check) and `mongo` (`ping`) report healthy, and
-`dashboard` waits until `backend` is healthy, meaning its `/ready` passes. WSO2 needs up to about 2 minutes to start
-(`start_period: 120s`).
+**Startup order** (from `docker-compose.yml`): `wso2am` waits for
+`wso2am-init` to finish; `backend` waits until both `wso2am` (startup health
+check) and `mongo` (`ping`) report healthy; `dashboard` waits until `backend`
+is healthy, meaning its `/ready` passes. WSO2 needs up to about 2 minutes to
+start (`start_period: 120s`).
+
+**Ports** are published on `127.0.0.1` only. On a server, nginx on the host
+is the public entry point (`deploy/nginx/opengate.conf`, README §9): the
+dashboard, the WSO2 Publisher with its sign-in (other WSO2 consoles behind an
+IP allowlist; the DevPortal, SOAP admin services and DCR never public), the
+gateway, and optionally the backend API. Docker-published ports bypass host
+firewalls such as ufw, hence loopback.
 
 **Persistent volumes:** `mongo-data`, `wso2am-470-deployment` (deployed
-artifacts) and `wso2am-470-database` (WSO2's embedded H2 databases).
+artifacts), `wso2am-470-database` (WSO2's embedded H2 databases, plus the
+pinned encryption key), `wso2am-470-solr` (WSO2's API search index) and
+`wso2am-470-logs` (WSO2's logs, mounted read-only into the backend for usage).
 
 ---
 
@@ -53,12 +72,25 @@ artifacts) and `wso2am-470-database` (WSO2's embedded H2 databases).
 ```
 .
 ├── docker-compose.yml        # Whole stack
-├── .env.example              # JWT_SECRET (copy to .env)
-├── ARCHITECTURE.md
-├── dashboard/                # Next.js 16 app (starter template so far)
-├── packages/sdk/             # Placeholder for a client SDK (empty)
+├── .env.example              # JWT_SECRET, WSO2 account, encryption key, provider keys (copy to .env)
+├── README.md                 # Setup and usage guide
+├── ARCHITECTURE.md           # This file
+├── ABOUT.txt                 # Short plain-text summary
+├── whatisopengate.txt        # Non-technical overview
+├── dashboard/                # Next.js 16 developer portal (see §4)
 ├── services/backend/         # OpenGate backend (see §3)
-├── wso2-config/              # apis/, sequences/: WSO2 artifacts (empty so far)
+├── services/sidecar/         # Placeholder (empty Dockerfile)
+├── packages/sdk/             # Placeholder for a client SDK (empty)
+├── deploy/nginx/            # nginx config for hosting on a server (README §9)
+├── scripts/
+│   ├── public-apis/          # One OpenAPI 3 file per sample API, with an x-opengate block
+│   ├── seed-public-apis.sh   # Publishes them in WSO2 (provider keys, shared limits, policies)
+│   ├── record-examples.mjs   # Calls each endpoint and records real example responses
+│   └── wso2-policies/        # opengateRedactQueryParams response policy
+├── wso2-config/
+│   ├── wso2-start.sh         # WSO2 entrypoint wrapper (analytics, re-index, encryption key)
+│   └── apis/, sequences/     # Set aside for WSO2 artifacts (empty, not mounted)
+├── .github/workflows/ci.yml  # Empty so far
 └── backups/                  # Local backup of the old WSO2 4.4.0 setup (untracked)
 ```
 
@@ -104,7 +136,8 @@ in fakes.
 | `src/controllers/` | `AuthController` and `ApplicationController`. Handlers are arrow functions, so they can be passed directly as route handlers. |
 | `src/services/` | `AuthService` (register/login/me), `Wso2ApplicationService` (create/list/get/update/delete, OAuth keys, ownership) and `SubscriptionService` (an app's WSO2 subscriptions; uses `Wso2ApplicationService.get` for ownership) and `PolicyService` (WSO2 throttling policies). |
 | `src/repositories/` | `IUserRepository` / `IApplicationRepository` interfaces and their Mongo implementations. Return plain records (`PublicUser`, `ApplicationRecord`), never Mongoose documents. |
-| `src/models/` | Mongoose schemas (§3.4). |
+| `src/models/` | Mongoose schemas: `User`, `Application`, `UsageEvent` (§3.4). |
+| `src/usage/` | The usage pipeline (§3.4): `metricsLog` (parses gateway analytics lines), `MetricsLogCollector` (follows the log), `UsageRepository` (stores and aggregates events), `summarize` (fills buckets, computes totals). Started from `index.ts` only when `USAGE_METRICS_LOG` is set. |
 | `src/security/` | `PasswordHasher` (argon2), `UserTokenService` (JWT via `jose`), `requireAuth` middleware. |
 | `src/integrations/wso2/client.ts` | `Wso2Transport` interface plus the axios-based `Wso2Client` (10s timeout, no redirects, optional self-signed TLS). |
 | `src/integrations/wso2/Wso2TokenProvider.ts` | `Wso2TokenProvider` (the backend's own WSO2 token: DCR, password grant, caching) and `RetryWithFreshToken` (retries once on a WSO2 `401`). |
@@ -204,11 +237,12 @@ POST /auth/login
 
 ```
 client ──POST /applications──▶ requireAuth ──▶ ApplicationController.create
-                                                  │ validates name; gets the service-account WSO2 token
+                                                  │ gets the service-account WSO2 token;
+                                                  │ validates name, description, throttlingPolicy
                                                   ▼
                                Wso2ApplicationService.create(ownerId, input, wso2Token)
                                   1. WSO2  POST /applications
-                                     {name, description, throttlingPolicy:"Unlimited", tokenType:"JWT"}
+                                     {name, description, throttlingPolicy (default "Unlimited"), tokenType:"JWT"}
                                        ├─ WSO2 4xx/5xx      → error passed through with WSO2's status
                                        ├─ WSO2 unreachable  → 502
                                        └─ no applicationId  → 502
@@ -265,7 +299,7 @@ otherwise come back as a 500.
 |---------|----------------|
 | Password storage | argon2 (library defaults, argon2id) |
 | Session tokens | HS256 JWT via `jose`: `iss=opengate`, `aud=opengate-backend`, `sub=<userId>`, 15-minute expiry. Verification pins the algorithm and requires `sub`, `iat` and `exp`. `JWT_SECRET` must be at least 32 bytes or startup fails. |
-| Brute force | `express-rate-limit` on `/auth/register`, `/auth/login` and `/auth/password`: 20 requests per 15 minutes per IP for each route (in memory, per instance) |
+| Brute force | `express-rate-limit` on `/auth/register`, `/auth/login` and `/auth/password`: 20 requests per 15 minutes per IP for each route (in memory, per instance). The client IP comes from `X-Forwarded-For` only with `TRUST_PROXY`; the dashboard forwards nginx's `X-Real-IP`. On a server, nginx also rate-limits WSO2's `/oauth2/token` and `/commonauth`. |
 | User enumeration | Login gives the same 401 for an unknown email and a wrong password. Another user's application gives 404, not 403. |
 | Input handling | JSON body limit 100 kB. Credentials must be strings. Malformed JSON → 400. |
 | Tenant isolation | Every application query is scoped by `ownerId` from the verified JWT. |
@@ -281,7 +315,15 @@ otherwise come back as a 500.
 | `JWT_SECRET` | yes | none | ≥ 32 bytes. Compose reads it from the root `.env` (`openssl rand -base64 48`). |
 | `WSO2_BASE_URL` | no | `https://localhost:9443/api/am/devportal/v3` | Compose: `https://wso2am:9443/...` |
 | `WSO2_ALLOW_SELF_SIGNED` | no | `false` | `"true"` to accept WSO2's default certificate |
+| `WSO2_USERNAME`, `WSO2_PASSWORD` | yes | none | The WSO2 account OpenGate acts as. Compose defaults both to `admin`. |
+| `WSO2_CLIENT_ID`, `WSO2_CLIENT_SECRET` | no | none | Both or neither (startup fails otherwise). Without them, `opengate_backend` is registered by DCR on first use. |
+| `USAGE_METRICS_LOG` | no | none | Path to WSO2's `apim_metrics.log`; usage is off (`{ enabled: false }`) without it. Compose: `/wso2-logs/apim_metrics.log`. |
+| `TRUST_PROXY` | no | none | Number of proxy hops whose `X-Forwarded-For` is trusted (Express `trust proxy`). Compose sets `1`: the dashboard forwards each visitor's IP, and nginx's `api.` block sets it, so the rate limits count visitors rather than the dashboard. Unset, the header is ignored. |
 | `PORT` | no | `4000` | |
+
+The `wso2am` container also reads `WSO2_ENCRYPTION_KEY`, `WSO2_ADMIN_PASSWORD`,
+`WSO2_HOSTNAME` and `WSO2_GATEWAY_HOST` (all optional; §5), and the scripts
+read provider keys such as `NASA_API_KEY` from the environment or `.env`.
 
 ### 3.7 Error handling
 
@@ -320,8 +362,11 @@ call it with `fetch`. The fakes come from `test/helpers.ts`:
 `InMemoryApplicationRepository` (can be told to fail the next create),
 `fakeHasher`, and `FakeWso2` (records every call; responses are scriptable).
 The test server collects log entries in `server.logs` rather than printing them.
-The suite covers auth, validation, token checks, WSO2 pass-through and
-outages, rollback, ownership isolation and ordering.
+The suite covers auth and password changes, validation, token checks, the
+backend's WSO2 token (DCR, caching, retry), WSO2 pass-through and outages,
+rollback, ownership isolation and ordering, keys, subscriptions, throttling
+policies, API operations parsing, usage collection and summaries, logging,
+readiness, and that `/openapi.json` matches the routes.
 
 **Docker image:** a two-stage `node:22-alpine` build (`npm ci && npm run
 build`, then copy `dist` and `node_modules`). `.dockerignore` excludes
@@ -339,7 +384,14 @@ Server Components and Server Actions call the backend with `lib/backend.ts`
 (`BACKEND_URL`, default `http://localhost:4000`), so the backend needs no
 CORS and tokens never reach client JavaScript.
 
-**Sessions.** One httpOnly, `SameSite=Lax` cookie (`Secure` in production),
+**Image.** A two-stage build: `next build` with `output: "standalone"`, then
+`node server.js` as the `node` user. Examples and the user guide take their
+public addresses from `lib/urls.ts` (`PUBLIC_GATEWAY_URL`, `PUBLIC_PORTAL_URL`,
+`PUBLIC_API_URL`, read at runtime; local defaults), and drop `-k` and
+`verify=False` when the address isn't localhost.
+
+**Sessions.** One httpOnly, `SameSite=Lax` cookie (`Secure` when the request
+came over HTTPS, per `X-Forwarded-Proto`, or with `SESSION_COOKIE_SECURE=true`),
 `opengate_session`, holding the OpenGate JWT from `/auth/login` for
 `expiresIn` (15 min). There's no WSO2 token in the dashboard; the backend
 has its own. A second, readable cookie, `opengate_theme` (`light`, `dark` or
@@ -433,7 +485,15 @@ layout itself, such as the backend being unreachable.
   with the index; and pins the `[encryption]` key, which the image otherwise
   regenerates in every new container, breaking every secret encrypted before
   (seen as `CryptoException` for NASA's provider key). The key comes from
-  `WSO2_ENCRYPTION_KEY`, else a file on the database volume. A `wso2am-init`
+  `WSO2_ENCRYPTION_KEY`, else a file on the database volume. Optionally, for a
+  server: `WSO2_HOSTNAME` sets `[server] hostname` and `proxyPort = 443` (so
+  sign-in redirects use the public name), `WSO2_GATEWAY_HOST` sets the Default
+  gateway's `http_endpoint`/`https_endpoint` (and so its vhost), and
+  `WSO2_ADMIN_PASSWORD` points `[super_admin]` password at that variable
+  (`$env{WSO2_ADMIN_PASSWORD}`), which WSO2 uses for the account on a fresh
+  database and for its own internal calls. Each warns if the line it edits is
+  missing. Hostname and `proxyPort` follow WSO2 4.7.0's reverse-proxy guide;
+  the gateway vhost change hasn't been run against a live server yet. A `wso2am-init`
   busybox service gives the new `solr` volume to WSO2's user, as the image has
   no such directory to copy ownership from.
 - The seed script marks key-included APIs with additional properties:
@@ -455,7 +515,8 @@ layout itself, such as the backend being unreachable.
 | WSO2 credentials | The backend acts as one WSO2 account (default `admin`, via the password grant), so all apps share it and names are unique across users. | Use a dedicated least-privilege WSO2 user. Consider per-user WSO2 subscribers if apps must be separated in WSO2 itself. |
 | Application lifecycle | Keys use the client-credentials grant only; no API keys. Regenerating a secret fails on WSO2 4.7.0; deleting the keys and generating new ones is the workaround, but it revokes existing tokens with no overlap. The automated tests use a fake WSO2. | Find why WSO2 4.7.0's key manager rejects the secret update. Configurable grant types. Automate an end-to-end test against the compose stack. |
 | Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token, so changing the password doesn't sign out other sessions. | Refresh token in an httpOnly cookie, rotated on each use. |
-| Rate limiting | Kept in memory per instance. | Move to a shared store (e.g. Redis) once there's more than one backend instance. |
+| Rate limiting | Kept in memory per instance. The limiter's `429` body is plain text, not the usual `{ message }` JSON. | Move to a shared store (e.g. Redis) once there's more than one backend instance; give the limiter a JSON handler. |
+| Hosting | One VPS, WSO2 on embedded H2, backups by hand. WSO2's public-hostname settings are untested live. | Verify on the first deploy; move WSO2 to PostgreSQL; scripted backups. |
 | `/apis` | Unauthenticated and sends no WSO2 token, so only public APIs show up. | Decide on visibility, then forward the right credentials. |
 | Dashboard | No session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the sessions row above. Add Playwright end-to-end tests. |
 | SDK | `packages/sdk` not implemented. | Generate it from `/openapi.json` (e.g. `openapi-typescript`), then use it in the dashboard instead of the hand-written types in `lib/types.ts`. |

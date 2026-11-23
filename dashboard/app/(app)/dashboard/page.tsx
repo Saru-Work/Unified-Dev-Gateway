@@ -10,6 +10,7 @@ import { categoryKey } from "@/lib/categories";
 import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 import type { Application, ApplicationKey, Subscription } from "@/lib/types";
+import { GATEWAY_URL, insecureFlag } from "@/lib/urls";
 
 export const metadata: Metadata = { title: "Overview · OpenGate" };
 
@@ -68,7 +69,7 @@ export default async function OverviewPage() {
     { label: "Apps with keys", value: appsWithKeys, href: "/applications" },
     { label: "APIs in the catalog", value: catalog.length, href: "/apis" },
   ];
-  const example = "curl -k https://localhost:8243/catfacts/1.0.0/fact \\\n  -H 'Authorization: Bearer <access token>'";
+  const example = `curl${insecureFlag(GATEWAY_URL)} ${GATEWAY_URL}/catfacts/1.0.0/fact \\\n  -H 'Authorization: Bearer <access token>'`;
 
   return (
     <>

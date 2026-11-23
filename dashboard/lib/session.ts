@@ -1,17 +1,34 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { backend, BackendError } from "./backend";
 import type { User } from "./types";
 
 export const SESSION_COOKIE = "opengate_session";
 
-export const cookieDefaults = {
-  httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-} as const;
+/**
+ * Options for the session cookie. It's `Secure` whenever the visitor came in
+ * over HTTPS (nginx sets X-Forwarded-Proto), so a production build still works
+ * on plain http://localhost, where browsers may drop a Secure cookie.
+ */
+export async function sessionCookieOptions() {
+  const proto = (await headers()).get("x-forwarded-proto")?.split(",")[0]?.trim();
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: proto === "https" || process.env.SESSION_COOKIE_SECURE === "true",
+    path: "/",
+  } as const;
+}
+
+/**
+ * The visitor's address as the reverse proxy saw it (nginx sets X-Real-IP),
+ * to forward to the backend so its rate limits count visitors separately
+ * rather than lumping everyone together as "the dashboard".
+ */
+export async function clientIp(): Promise<string | undefined> {
+  return (await headers()).get("x-real-ip")?.trim() || undefined;
+}
 
 /**
  * Returns the signed-in user and their token, or redirects to /login.

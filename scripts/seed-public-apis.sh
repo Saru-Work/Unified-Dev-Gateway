@@ -32,16 +32,13 @@
 #
 # Usage: scripts/seed-public-apis.sh
 # Env:   WSO2_URL (default https://localhost:9443)
+#        GATEWAY_VHOST (default: WSO2_GATEWAY_HOST, else localhost): the
+#        gateway's public hostname
 #        WSO2_USERNAME / WSO2_PASSWORD (default admin / admin)
 #        plus any provider key variables the API files name
 # Needs: curl, jq, shasum or sha256sum
 set -euo pipefail
 
-WSO2_URL=${WSO2_URL:-https://localhost:9443}
-WSO2_USERNAME=${WSO2_USERNAME:-admin}
-WSO2_PASSWORD=${WSO2_PASSWORD:-admin}
-PUBLISHER="$WSO2_URL/api/am/publisher/v4"
-ADMIN="$WSO2_URL/api/am/admin/v4"
 TIERS='["Bronze","Silver","Gold","Unlimited"]'
 API_DIR="$(cd "$(dirname "$0")" && pwd)/public-apis"
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
@@ -59,6 +56,14 @@ if [[ -f $ENV_FILE ]]; then
     [[ -z ${!key+set} ]] && export "$key=$value"
   done <"$ENV_FILE"
 fi
+
+# Defaults apply after .env, so its values (e.g. a changed WSO2 password) win.
+WSO2_URL=${WSO2_URL:-https://localhost:9443}
+WSO2_USERNAME=${WSO2_USERNAME:-admin}
+WSO2_PASSWORD=${WSO2_PASSWORD:-admin}
+GATEWAY_VHOST=${GATEWAY_VHOST:-${WSO2_GATEWAY_HOST:-localhost}}
+PUBLISHER="$WSO2_URL/api/am/publisher/v4"
+ADMIN="$WSO2_URL/api/am/admin/v4"
 
 sha256() { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi | cut -c1-16; }
 
@@ -262,9 +267,11 @@ seed() {
 
   # The gateway serves a deployed revision: deploy one if there's none yet, or
   # if the endpoints or provider key changed. Docs-only changes don't need it.
-  local deployed
-  deployed=$(wso2 "${auth[@]}" "$PUBLISHER/apis/$id/deployments" | jq 'length')
-  if [[ $deployed == 0 || -n $key_changed || -n $limit_changed ||
+  local deployments deployed vhost
+  deployments=$(wso2 "${auth[@]}" "$PUBLISHER/apis/$id/deployments")
+  deployed=$(jq 'length' <<<"$deployments")
+  vhost=$(jq -r '.[0].vhost // ""' <<<"$deployments")
+  if [[ $deployed == 0 || $vhost != "$GATEWAY_VHOST" || -n $key_changed || -n $limit_changed ||
         $before != "$(resources <<<"$definition")" ]]; then
     # WSO2 keeps at most 5 revisions; drop the ones that aren't deployed.
     for old in $(wso2 "${auth[@]}" "$PUBLISHER/apis/$id/revisions?query=deployed:false" | jq -r '.list[].id'); do
@@ -275,7 +282,7 @@ seed() {
       "$PUBLISHER/apis/$id/revisions" -d '{"description":"Seeded by OpenGate"}' | jq -r .id)
     wso2 "${auth[@]}" -H 'Content-Type: application/json' \
       "$PUBLISHER/apis/$id/deploy-revision?revisionId=$revision" \
-      -d '[{"name":"Default","vhost":"localhost","displayOnDevportal":true}]' >/dev/null
+      -d "[{\"name\":\"Default\",\"vhost\":\"$GATEWAY_VHOST\",\"displayOnDevportal\":true}]" >/dev/null
     echo "    deployed revision $revision to the Default gateway"
   fi
 
@@ -297,5 +304,9 @@ for file in "${files[@]}"; do
   seed "$file"
 done
 
-echo "Done. Gateway URLs: https://localhost:8243/<context>/1.0.0/… (http on :8280)."
+if [[ $GATEWAY_VHOST == localhost ]]; then
+  echo "Done. Gateway URLs: https://localhost:8243/<context>/1.0.0/… (http on :8280)."
+else
+  echo "Done. Gateway URLs: https://$GATEWAY_VHOST/<context>/1.0.0/…"
+fi
 echo "New APIs take about 15 seconds to load on the gateway; it answers 404 until then."

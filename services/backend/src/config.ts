@@ -20,6 +20,8 @@ export interface AppConfig {
   wso2ClientSecret?: string;
   /** WSO2's apim_metrics.log, read for per-application usage; usage is off without it. */
   usageMetricsLog?: string;
+  /** Proxy hops in front of the backend whose X-Forwarded-For is trusted (Express "trust proxy"). */
+  trustProxy?: number;
 }
 
 export function loadConfig(): AppConfig {
@@ -35,7 +37,23 @@ export function loadConfig(): AppConfig {
     wso2Password: required("WSO2_PASSWORD"),
     ...optionalClient(),
     ...(process.env.USAGE_METRICS_LOG && { usageMetricsLog: process.env.USAGE_METRICS_LOG }),
+    ...optionalTrustProxy(),
   };
+}
+
+/**
+ * TRUST_PROXY is the number of proxies in front of the backend (nginx, or the
+ * dashboard, which forwards the visitor's address). Unset, X-Forwarded-For is
+ * ignored and the rate limits count the connecting address.
+ */
+function optionalTrustProxy(): { trustProxy?: number } {
+  const raw = process.env.TRUST_PROXY;
+  if (!raw) return {};
+  const hops = Number(raw);
+  if (!Number.isInteger(hops) || hops < 0) {
+    throw new Error("TRUST_PROXY must be a whole number of proxy hops, e.g. 1");
+  }
+  return { trustProxy: hops };
 }
 
 /** WSO2_CLIENT_ID and WSO2_CLIENT_SECRET go together: both or neither. */
