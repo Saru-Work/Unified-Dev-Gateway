@@ -9,6 +9,7 @@ import { MetricsLogCollector } from "./usage/MetricsLogCollector";
 import { UsageRepository } from "./usage/UsageRepository";
 import { UserRepository } from "./repositories/UserRepository";
 import { ApplicationRepository } from "./repositories/ApplicationRepository";
+import { RefreshTokenRepository } from "./repositories/RefreshTokenRepository";
 import { PasswordHasher } from "./security/PasswordHasher";
 import { UserTokenService } from "./security/UserTokenService";
 
@@ -41,6 +42,7 @@ async function main() {
     applications: new ApplicationRepository(),
     passwords: new PasswordHasher(),
     tokens: new UserTokenService(config.jwtSecret),
+    refreshTokens: new RefreshTokenRepository(),
     wso2,
     wso2Token,
     usage,

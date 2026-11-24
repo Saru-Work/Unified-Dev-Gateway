@@ -330,12 +330,27 @@ Full response:
   "accessToken": "eyJhbGciOiJIUzI1NiJ9…",
   "tokenType": "Bearer",
   "expiresIn": 900,
+  "refreshToken": "rfSNsyrHNqOvodsAUNeaUCi9…",
+  "refreshExpiresIn": 2592000,
   "user": { "id": "6ae9843c0c47b0497ac38be5", "email": "dev@example.com" }
 }
 ```
 
-The token lasts **15 minutes** (`expiresIn` is in seconds). When it expires,
-log in again; there are no refresh tokens yet. Check who you are:
+The access token lasts **15 minutes** (`expiresIn` is in seconds). To get a
+new one without the password, swap the refresh token:
+
+```bash
+curl -s -X POST $API/auth/refresh -H 'Content-Type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH\"}"
+```
+
+The answer has the same shape as the login response. Each refresh token
+works **once**: keep the new one. Presenting a used one again (after a 30
+second grace for parallel requests) is treated as theft and ends that
+session everywhere. Refresh tokens last 30 days from their last use;
+`POST /auth/logout` with the same body ends the session, and changing the
+password ends every session except the one whose `refreshToken` you send
+with it. Check who you are:
 
 ```bash
 curl -s $API/auth/me -H "Authorization: Bearer $TOKEN"
@@ -451,9 +466,10 @@ default; switch to dark, or to follow your device, from the sidebar or
 1. **Create an account** (or **Sign in**). You land on **Overview**: your
    numbers (applications, subscriptions, apps with keys, APIs available), a
    getting-started checklist that ticks itself off, your recent applications
-   and featured APIs. Your session lasts as long as the OpenGate token, 15
-   minutes. After that you're asked to sign in again and then sent back to
-   the page you were on.
+   and featured APIs. You stay signed in for 30 days from your last
+   visit; the dashboard renews the 15-minute OpenGate token in the
+   background. Signing out, or changing your password, ends your sessions
+   on other devices.
 2. **API catalog** lists the public APIs in WSO2, with an icon and colour per
    category. Search by name, description, context or tag, or filter by
    category. Open one to see its **Endpoints**: each one's
@@ -663,7 +679,7 @@ The session cookie is `Secure` whenever the request arrived over HTTPS
 | Backend container stays in `Created` / waiting | WSO2 is still starting; its health check allows about 2 minutes. Watch `docker compose logs -f wso2am`. |
 | Every call returns `502 WSO2 is unreachable` | WSO2 isn't up or `WSO2_BASE_URL` is wrong. Inside compose the host is `wso2am`, not `localhost`. |
 | WSO2 calls fail with certificate errors | Set `WSO2_ALLOW_SELF_SIGNED=true` (compose already does). |
-| `401 Invalid or expired token` after a while | OpenGate tokens last 15 minutes. Log in again. |
+| `401 Invalid or expired token` after a while | OpenGate access tokens last 15 minutes. Swap your refresh token at `/auth/refresh`, or log in again. |
 | `502 OpenGate couldn't authenticate with WSO2` | The backend couldn't get its WSO2 token. Check `WSO2_USERNAME` / `WSO2_PASSWORD` and the backend log line *Failed to get a WSO2 token* ([§4.4](#44-how-opengate-talks-to-wso2)). |
 | WSO2 calls return `403` | OpenGate's WSO2 account lacks permission. Give it the `Internal/subscriber` role. |
 | **Regenerate secret** returns WSO2's `500` (`900967 General Error`) | WSO2 4.7.0's key manager rejects the secret update (its log shows *Error while generating new consumer secret … status code: 400*), even when called directly on WSO2. Until that's sorted, use **Delete keys** and generate new ones. |

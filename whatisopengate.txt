@@ -229,15 +229,14 @@ These matter before opening OpenGate to the public internet:
   - One shared WSO2 account owns every application, so application names
     must be unique across all developers.
   - Only public APIs are listed; there are no private or per-team APIs.
-  - Sessions last 15 minutes with no "stay signed in".
   - "Regenerate secret" fails on WSO2 4.7.0 itself; deleting the keys and
     generating new ones is the workaround.
   - The dashboard container runs in development mode; a production build
     and deployment setup are still to do.
 
 The most valuable next steps would be: a dedicated least-privilege WSO2
-account, organisations and roles, usage analytics per application, and
-session refresh.
+account, organisations and roles, and fair-share limits per application
+on APIs that share a provider key.
 
 
 WHERE TO READ MORE

@@ -3,7 +3,14 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { backend, BackendError, describeError } from "@/lib/backend";
-import { clientIp, requireUser, sessionCookieOptions, SESSION_COOKIE } from "@/lib/session";
+import {
+  clientIp,
+  requireUser,
+  sessionCookieOptions,
+  REFRESH_COOKIE,
+  SESSION_COOKIE,
+} from "@/lib/session";
+import { storeSession } from "@/lib/session-cookies";
 import type { FormState, LoginResponse } from "@/lib/types";
 
 function readCredentials(formData: FormData) {
@@ -25,15 +32,12 @@ function safeNext(value: FormDataEntryValue | null): string {
 }
 
 async function startSession(email: string, password: string) {
-  const { accessToken, expiresIn } = await backend<LoginResponse>("/auth/login", {
+  const session = await backend<LoginResponse>("/auth/login", {
     method: "POST",
     body: { email, password },
     clientIp: await clientIp(),
   });
-  (await cookies()).set(SESSION_COOKIE, accessToken, {
-    ...(await sessionCookieOptions()),
-    maxAge: expiresIn,
-  });
+  storeSession(await cookies(), session, await sessionCookieOptions());
 }
 
 export async function login(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -101,7 +105,12 @@ export async function changePassword(
   try {
     await backend("/auth/password", {
       method: "POST",
-      body: { currentPassword, newPassword },
+      // Keeps this session signed in; every other one is signed out.
+      body: {
+        currentPassword,
+        newPassword,
+        refreshToken: (await cookies()).get(REFRESH_COOKIE)?.value,
+      },
       token,
       clientIp: await clientIp(),
     });
@@ -114,10 +123,24 @@ export async function changePassword(
     return { error: describeError(err) };
   }
 
-  return { success: "Password changed. Use it the next time you sign in." };
+  return {
+    success: "Password changed. Other devices are signed out within 15 minutes.",
+  };
 }
 
 export async function logout() {
-  (await cookies()).delete(SESSION_COOKIE);
+  const jar = await cookies();
+  const refreshToken = jar.get(REFRESH_COOKIE)?.value;
+  if (refreshToken) {
+    // End the session on the backend too, so a copied cookie stops working.
+    // Signing out locally still happens if the backend can't be reached.
+    await backend("/auth/logout", {
+      method: "POST",
+      body: { refreshToken },
+      clientIp: await clientIp(),
+    }).catch(() => undefined);
+  }
+  jar.delete(SESSION_COOKIE);
+  jar.delete(REFRESH_COOKIE);
   redirect("/login");
 }

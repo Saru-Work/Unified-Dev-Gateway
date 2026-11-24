@@ -231,6 +231,12 @@ POST /auth/register
 POST /auth/login
   AuthService.login                users.findCredentials (selects +passwordHash)
                                    argon2.verify → tokens.issue(user.id) → 15-minute JWT
+                                   refreshTokens.issue(user.id) → new family, 30-day token
+
+POST /auth/refresh
+  RefreshTokenService.rotate       findByHash(sha256) → reject revoked/expired
+                                   markUsed (atomic) → issue next token, same family
+                                   already used > 30s ago → revokeFamily → 401
 ```
 
 **Creating an application (with compensating rollback)**
@@ -299,7 +305,8 @@ otherwise come back as a 500.
 |---------|----------------|
 | Password storage | argon2 (library defaults, argon2id) |
 | Session tokens | HS256 JWT via `jose`: `iss=opengate`, `aud=opengate-backend`, `sub=<userId>`, 15-minute expiry. Verification pins the algorithm and requires `sub`, `iat` and `exp`. `JWT_SECRET` must be at least 32 bytes or startup fails. |
-| Brute force | `express-rate-limit` on `/auth/register`, `/auth/login` and `/auth/password`: 20 requests per 15 minutes per IP for each route (in memory, per instance). The client IP comes from `X-Forwarded-For` only with `TRUST_PROXY`; the dashboard forwards nginx's `X-Real-IP`. On a server, nginx also rate-limits WSO2's `/oauth2/token` and `/commonauth`. |
+| Refresh tokens | 32 random bytes, stored only as a SHA-256 hash in `refreshtokens` (TTL index on `expiresAt`). Single use and rotated: each sign-in is a family; reusing a spent token more than 30 seconds after its first use revokes the family. Logout revokes the family; a password change revokes all of the user's families but the caller's. |
+| Brute force | `express-rate-limit` on `/auth/register`, `/auth/login` and `/auth/password`: 20 requests per 15 minutes per IP for each route (in memory, per instance). `/auth/refresh` and `/auth/logout` allow 300, since a refresh token can't be guessed. The client IP comes from `X-Forwarded-For` only with `TRUST_PROXY`; the dashboard forwards nginx's `X-Real-IP`. On a server, nginx also rate-limits WSO2's `/oauth2/token` and `/commonauth`. |
 | User enumeration | Login gives the same 401 for an unknown email and a wrong password. Another user's application gives 404, not 403. |
 | Input handling | JSON body limit 100 kB. Credentials must be strings. Malformed JSON → 400. |
 | Tenant isolation | Every application query is scoped by `ownerId` from the verified JWT. |
@@ -393,7 +400,11 @@ public addresses from `lib/urls.ts` (`PUBLIC_GATEWAY_URL`, `PUBLIC_PORTAL_URL`,
 **Sessions.** One httpOnly, `SameSite=Lax` cookie (`Secure` when the request
 came over HTTPS, per `X-Forwarded-Proto`, or with `SESSION_COOKIE_SECURE=true`),
 `opengate_session`, holding the OpenGate JWT from `/auth/login` for
-`expiresIn` (15 min). There's no WSO2 token in the dashboard; the backend
+`expiresIn` (15 min), and `opengate_refresh`, holding the refresh token for
+`refreshExpiresIn` (30 days). `lib/session-cookies.ts` holds the names and
+options, shared by the proxy and the Server Actions. Signing out posts the
+refresh token to `/auth/logout`; changing the password sends it along so
+this session survives while the others are revoked. There's no WSO2 token in the dashboard; the backend
 has its own. A second, readable cookie, `opengate_theme` (`light`, `dark` or
 `system`; light if missing), is read by the root layout to set
 `<html data-theme>`, so the server renders the chosen theme with no flash.
@@ -409,8 +420,13 @@ Shared pieces are in `app/ui/` (page header, empty state, logo, API icon,
 site header, theme switcher). `lib/categories.ts` maps WSO2 tags to an icon; `lib/apis.ts` loads the catalog (the list plus each API's
 details, since WSO2's list leaves tags out).
 
-`proxy.ts` redirects requests without a session cookie to
-`/login?next=<path>` (an optimistic check only). `requireUser()` in
+`proxy.ts` redirects requests with neither cookie to
+`/login?next=<path>`. When the access token is missing or has under a
+minute left, it calls `/auth/refresh` and sets the new pair both on the
+response and on the request, so the page being rendered already sees the new
+token (pages can't set cookies themselves). A `401` from the refresh clears
+both cookies and goes to `/login?expired=1`; any other failure lets the
+request through so an outage doesn't sign everyone out. `requireUser()` in
 `lib/session.ts` verifies the token with `/auth/me`, is cached per request,
 and sends a `401` to `/login?expired=1`. Every Server Action calls it again
 before doing anything.
@@ -514,10 +530,10 @@ layout itself, such as the backend being unreachable.
 | Provider keys | One provider key per API, shared by every developer. A shared limit protects the provider's quota, but one developer can still take all of it. Query-parameter keys are appended after a caller's own. | Fair-share limits per application; prefer header keys. |
 | WSO2 credentials | The backend acts as one WSO2 account (default `admin`, via the password grant), so all apps share it and names are unique across users. | Use a dedicated least-privilege WSO2 user. Consider per-user WSO2 subscribers if apps must be separated in WSO2 itself. |
 | Application lifecycle | Keys use the client-credentials grant only; no API keys. Regenerating a secret fails on WSO2 4.7.0; deleting the keys and generating new ones is the workaround, but it revokes existing tokens with no overlap. The automated tests use a fake WSO2. | Find why WSO2 4.7.0's key manager rejects the secret update. Configurable grant types. Automate an end-to-end test against the compose stack. |
-| Sessions | Access tokens only (15 minutes). No refresh tokens and no way to revoke a token, so changing the password doesn't sign out other sessions. | Refresh token in an httpOnly cookie, rotated on each use. |
+| Sessions | Access tokens can't be revoked, so a signed-out or password-changed session keeps API access for up to 15 minutes. Refresh tokens slide (30 days from last use) with no absolute limit. | A per-user token version checked in `requireAuth` if instant revocation matters; an absolute family lifetime. |
 | Rate limiting | Kept in memory per instance. The limiter's `429` body is plain text, not the usual `{ message }` JSON. | Move to a shared store (e.g. Redis) once there's more than one backend instance; give the limiter a JSON handler. |
 | Hosting | One VPS, WSO2 on embedded H2, backups by hand. WSO2's public-hostname settings are untested live. | Verify on the first deploy; move WSO2 to PostgreSQL; scripted backups. |
 | `/apis` | Unauthenticated and sends no WSO2 token, so only public APIs show up. | Decide on visibility, then forward the right credentials. |
-| Dashboard | No session refresh, so users are sent to sign in again after 15 minutes. Untested against a live stack in CI. | Follows from the sessions row above. Add Playwright end-to-end tests. |
+| Dashboard | Untested against a live stack in CI. | Add Playwright end-to-end tests. |
 | SDK | `packages/sdk` not implemented. | Generate it from `/openapi.json` (e.g. `openapi-typescript`), then use it in the dashboard instead of the hand-written types in `lib/types.ts`. |
 | Observability | JSON request logs with ids, `/ready`, and per-application usage from the gateway's analytics log. No metrics endpoint for the backend itself, and the request id isn't forwarded to WSO2 or from the dashboard. Usage is read from a file on a shared volume, which assumes one gateway node. | Forward `X-Request-Id` end to end; Prometheus metrics; with several gateway nodes, ship analytics to a collector instead of a shared file. |

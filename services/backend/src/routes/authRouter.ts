@@ -16,8 +16,18 @@ export function createAuthRouter(
     legacyHeaders: false,
   });
 
+  // Refresh tokens are 256 random bits, so this only caps runaway clients.
+  const refreshLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+  });
+
   router.post("/register", credentialLimiter, controller.register);
   router.post("/login", credentialLimiter, controller.login);
+  router.post("/refresh", refreshLimiter, controller.refresh);
+  router.post("/logout", refreshLimiter, controller.logout);
   router.get("/me", authenticate, controller.me);
   // Rate-limited too: it's another way to test guesses of the current password.
   router.post("/password", authenticate, credentialLimiter, controller.changePassword);

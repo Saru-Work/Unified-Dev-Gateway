@@ -2,23 +2,20 @@ import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { backend, BackendError } from "./backend";
+import { cookieOptions, REFRESH_COOKIE, SESSION_COOKIE } from "./session-cookies";
 import type { User } from "./types";
 
-export const SESSION_COOKIE = "opengate_session";
+export { REFRESH_COOKIE, SESSION_COOKIE } from "./session-cookies";
 
-/**
- * Options for the session cookie. It's `Secure` whenever the visitor came in
- * over HTTPS (nginx sets X-Forwarded-Proto), so a production build still works
- * on plain http://localhost, where browsers may drop a Secure cookie.
- */
+/** Cookie options for this request (Secure when the visitor came over HTTPS). */
 export async function sessionCookieOptions() {
-  const proto = (await headers()).get("x-forwarded-proto")?.split(",")[0]?.trim();
-  return {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: proto === "https" || process.env.SESSION_COOKIE_SECURE === "true",
-    path: "/",
-  } as const;
+  return cookieOptions((await headers()).get("x-forwarded-proto"));
+}
+
+/** Whether the visitor has a session, even one whose access token needs refreshing. */
+export async function hasSession(): Promise<boolean> {
+  const jar = await cookies();
+  return jar.has(SESSION_COOKIE) || jar.has(REFRESH_COOKIE);
 }
 
 /**

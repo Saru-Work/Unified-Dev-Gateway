@@ -22,6 +22,11 @@ import type {
   PublicUser,
   UserCredentials,
 } from "../src/repositories/UserRepository";
+import type {
+  IRefreshTokenRepository,
+  NewRefreshToken,
+  RefreshTokenRecord,
+} from "../src/repositories/RefreshTokenRepository";
 import type { PasswordHasher } from "../src/security/PasswordHasher";
 import { UserTokenService } from "../src/security/UserTokenService";
 import type { LogEntry } from "../src/observability/requestLogging";
@@ -60,6 +65,46 @@ export class InMemoryUserRepository implements IUserRepository {
   async findById(id: string): Promise<PublicUser | null> {
     const user = this.users.get(id);
     return user ? { id: user.id, email: user.email } : null;
+  }
+}
+
+export class InMemoryRefreshTokenRepository implements IRefreshTokenRepository {
+  readonly records: RefreshTokenRecord[] = [];
+  private nextId = 1;
+
+  async create(token: NewRefreshToken): Promise<void> {
+    this.records.push({ ...token, id: String(this.nextId++) });
+  }
+
+  async findByHash(tokenHash: string): Promise<RefreshTokenRecord | null> {
+    const record = this.records.find((r) => r.tokenHash === tokenHash);
+    return record ? { ...record } : null;
+  }
+
+  async markUsed(id: string, at: Date): Promise<boolean> {
+    const record = this.records.find((r) => r.id === id);
+    if (!record || record.usedAt) return false;
+    record.usedAt = at;
+    return true;
+  }
+
+  async revokeFamily(familyId: string, at: Date): Promise<void> {
+    for (const r of this.records) if (r.familyId === familyId) r.revokedAt ??= at;
+  }
+
+  async revokeAllForUser(userId: string, at: Date, exceptFamilyId?: string): Promise<void> {
+    for (const r of this.records) {
+      if (r.userId === userId && r.familyId !== exceptFamilyId) r.revokedAt ??= at;
+    }
+  }
+}
+
+/** A clock tests can move forward. */
+export class TestClock {
+  private ms = Date.now();
+  now = () => new Date(this.ms);
+  advance(seconds: number): void {
+    this.ms += seconds * 1000;
   }
 }
 
@@ -193,6 +238,9 @@ export interface TestServer {
   wso2Token: FakeWso2Token;
   applications: InMemoryApplicationRepository;
   tokens: UserTokenService;
+  refreshTokens: InMemoryRefreshTokenRepository;
+  /** Drives refresh-token expiry and reuse checks. */
+  clock: TestClock;
   /** Everything the app logged, instead of writing it to the console. */
   logs: LogEntry[];
   close(): Promise<void>;
@@ -283,6 +331,8 @@ export async function startTestServer(
   const wso2Token = new FakeWso2Token();
   const tokens = new UserTokenService(TEST_SECRET);
   const applications = new InMemoryApplicationRepository();
+  const refreshTokens = new InMemoryRefreshTokenRepository();
+  const clock = new TestClock();
   const logs: LogEntry[] = [];
   const app = createApp({
     log: (entry) => logs.push(entry),
@@ -290,6 +340,8 @@ export async function startTestServer(
     applications,
     passwords: fakeHasher,
     tokens,
+    refreshTokens,
+    refreshTokenOptions: { now: clock.now },
     wso2,
     wso2Token,
     usage: options.usage,
@@ -324,6 +376,8 @@ export async function startTestServer(
     wso2Token,
     applications,
     tokens,
+    refreshTokens,
+    clock,
     logs,
     close: () =>
       new Promise((resolve, reject) =>

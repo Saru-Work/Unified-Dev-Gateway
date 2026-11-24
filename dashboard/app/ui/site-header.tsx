@@ -1,11 +1,10 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
-import { SESSION_COOKIE } from "@/lib/session";
+import { hasSession } from "@/lib/session";
 import { Logo } from "./logo";
 
 /** Header for public pages (landing, docs). */
 export async function SiteHeader({ current }: { current?: "docs" }) {
-  const signedIn = (await cookies()).has(SESSION_COOKIE);
+  const signedIn = await hasSession();
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-8">

@@ -27,6 +27,8 @@ export interface LoginResponse {
   accessToken: string;
   tokenType: "Bearer";
   expiresIn: number;
+  refreshToken: string;
+  refreshExpiresIn: number;
   user: User;
 }
 

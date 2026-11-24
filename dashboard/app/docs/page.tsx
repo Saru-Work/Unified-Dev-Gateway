@@ -215,8 +215,8 @@ export default function DocsPage() {
                 checklist of next steps.
               </li>
               <li>
-                <strong>Sessions</strong> last 15 minutes. After that you&apos;re asked to sign
-                in again and taken back to the page you were on.
+                <strong>Sessions</strong> stay signed in for 30 days from your last visit. Signing
+                out, or changing your password, ends your sessions on other devices.
               </li>
               <li>
                 <strong>Password</strong>: change it under <strong>Settings → Password</strong>.
@@ -476,7 +476,8 @@ curl -s $API/applications/$APP/keys/$MAPPING/token -H "$AUTH" \\
   | jq -r .token.accessToken`}</Code>
             <p>
               OpenGate&apos;s own token (from <code>/auth/login</code>) lasts 15 minutes and is
-              only for OpenGate. API calls through the gateway use the access token from the
+              only for OpenGate. Swap the <code>refreshToken</code> from the same response at{" "}
+              <code>POST /auth/refresh</code> for a new one; each refresh token works once. API calls through the gateway use the access token from the
               last step.
             </p>
           </Section>
@@ -551,7 +552,7 @@ curl -s $API/applications/$APP/keys/$MAPPING/token -H "$AUTH" \\
                 </tr>
                 <tr>
                   <td>Sent back to sign in</td>
-                  <td>Sessions last 15 minutes. Sign in again and you&apos;ll return to where you were.</td>
+                  <td>You signed out, changed your password on another device, or haven&apos;t visited in 30 days. Sign in again and you&apos;ll return to where you were.</td>
                 </tr>
               </tbody>
             </table>
