@@ -20,6 +20,8 @@ interface RequestOptions {
   body?: unknown;
   /** OpenGate access token (sent as Authorization). */
   token?: string;
+  /** The visitor's IP, sent as X-Forwarded-For for the backend's rate limits. */
+  clientIp?: string;
 }
 
 function parse(text: string): unknown {
@@ -33,11 +35,12 @@ function parse(text: string): unknown {
 
 export async function backend<T>(
   path: string,
-  { method = "GET", body, token }: RequestOptions = {},
+  { method = "GET", body, token, clientIp }: RequestOptions = {},
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (clientIp) headers["X-Forwarded-For"] = clientIp;
 
   let res: Response;
   try {

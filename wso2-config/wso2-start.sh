@@ -46,4 +46,40 @@ esac
 sed -i '/^\[encryption\]$/,/^key = /d' "$conf"
 printf '\n[encryption]\nkey = "%s"\n' "$key" >>"$conf"
 
+# 4. Public hostnames (optional), for running behind a reverse proxy on 443.
+#    WSO2_HOSTNAME is where the Publisher is reached (e.g. portal.example.com):
+#    WSO2 builds its login redirects and portal URLs from it. WSO2_GATEWAY_HOST
+#    is the gateway's public name (e.g. gateway.example.com): it becomes the
+#    Default gateway's vhost, so the URLs OpenGate shows developers use it.
+if [ -n "${WSO2_HOSTNAME:-}" ]; then
+  sed -i '/^\[server\]$/,/^\[/s/^hostname = .*/hostname = "'"$WSO2_HOSTNAME"'"/' "$conf"
+  grep -q "^hostname = \"$WSO2_HOSTNAME\"" "$conf" ||
+    echo "OpenGate: warning: no [server] hostname line to set in deployment.toml" >&2
+  sed -i '/^# opengate-proxy-start$/,/^# opengate-proxy-end$/d' "$conf"
+  if grep -q '^\[transport\.https\.properties\]' "$conf"; then
+    echo "OpenGate: warning: [transport.https.properties] already exists; set proxyPort = 443 there" >&2
+  else
+    printf '# opengate-proxy-start\n[transport.https.properties]\nproxyPort = 443\n# opengate-proxy-end\n' >>"$conf"
+  fi
+fi
+if [ -n "${WSO2_GATEWAY_HOST:-}" ]; then
+  sed -i -e 's#^http_endpoint = .*#http_endpoint = "http://'"$WSO2_GATEWAY_HOST"'"#' \
+         -e 's#^https_endpoint = .*#https_endpoint = "https://'"$WSO2_GATEWAY_HOST"'"#' "$conf"
+  grep -q "^https_endpoint = \"https://$WSO2_GATEWAY_HOST\"" "$conf" ||
+    echo "OpenGate: warning: no gateway https_endpoint line to set in deployment.toml" >&2
+fi
+
+# 5. Admin password (optional). WSO2 creates the admin account from
+#    [super_admin] on a fresh database, and also uses that password for its
+#    own internal calls, so the file and the account must agree. Set
+#    WSO2_ADMIN_PASSWORD before the first start; for an existing database,
+#    change the password in /carbon first, then set it here to match. The
+#    file refers to the variable ($env{...}, which WSO2 resolves at start-up)
+#    rather than holding the password itself.
+if [ -n "${WSO2_ADMIN_PASSWORD:-}" ]; then
+  sed -i '/^\[super_admin\]$/,/^\[/s|^password = .*|password = "$env{WSO2_ADMIN_PASSWORD}"|' "$conf"
+  grep -q '^password = "$env{WSO2_ADMIN_PASSWORD}"' "$conf" ||
+    echo "OpenGate: warning: no [super_admin] password line to set in deployment.toml" >&2
+fi
+
 exec /home/wso2carbon/docker-entrypoint.sh "$@"

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CopyButton } from "@/app/copy-button";
 import { SiteHeader } from "@/app/ui/site-header";
+import { API_URL, GATEWAY_URL, insecureFlag, isLocal, PORTAL_URL } from "@/lib/urls";
 
 export const metadata: Metadata = {
   title: "Documentation · OpenGate",
@@ -25,7 +26,8 @@ const SECTIONS = [
   { id: "faq", title: "FAQ" },
 ] as const;
 
-const GATEWAY = "https://localhost:8243";
+const GATEWAY = GATEWAY_URL;
+const K = insecureFlag(GATEWAY);
 
 /** A code sample with a copy button. */
 function Code({ children, label }: { children: string; label?: string }) {
@@ -192,11 +194,16 @@ export default function DocsPage() {
               <li>Click <strong>Get access token</strong> and copy the token.</li>
               <li>Call the API with it:</li>
             </ol>
-            <Code>{`curl -k ${GATEWAY}/catfacts/1.0.0/fact \\
+            <Code>{`curl${K} ${GATEWAY}/catfacts/1.0.0/fact \\
   -H "Authorization: Bearer <access token>"`}</Code>
             <p>
-              You should get a JSON cat fact back. The <code>-k</code> flag is only needed
-              locally, where WSO2 uses a self-signed certificate.
+              You should get a JSON cat fact back.
+              {K && (
+                <>
+                  {" "}The <code>-k</code> flag is only needed locally, where WSO2 uses a
+                  self-signed certificate.
+                </>
+              )}
             </p>
           </Section>
 
@@ -208,8 +215,8 @@ export default function DocsPage() {
                 checklist of next steps.
               </li>
               <li>
-                <strong>Sessions</strong> last 15 minutes. After that you&apos;re asked to sign
-                in again and taken back to the page you were on.
+                <strong>Sessions</strong> stay signed in for 30 days from your last visit. Signing
+                out, or changing your password, ends your sessions on other devices.
               </li>
               <li>
                 <strong>Password</strong>: change it under <strong>Settings → Password</strong>.
@@ -384,10 +391,14 @@ export default function DocsPage() {
 # for example
 ${GATEWAY}/weather/1.0.0/forecast?latitude=51.5&longitude=-0.12&current_weather=true`}</Code>
             <p>
-              Send the token in the <code>Authorization</code> header. Locally, plain HTTP also
-              works on <code>http://localhost:8280</code>.
+              Send the token in the <code>Authorization</code> header.
+              {isLocal(GATEWAY) && (
+                <>
+                  {" "}Locally, plain HTTP also works on <code>http://localhost:8280</code>.
+                </>
+              )}
             </p>
-            <Code label="curl">{`curl -k "${GATEWAY}/weather/1.0.0/forecast?latitude=51.5&longitude=-0.12&current_weather=true" \\
+            <Code label="curl">{`curl${K} "${GATEWAY}/weather/1.0.0/forecast?latitude=51.5&longitude=-0.12&current_weather=true" \\
   -H "Authorization: Bearer $ACCESS_TOKEN"`}</Code>
             <Code label="JavaScript (Node 18+)">{`const res = await fetch(
   "${GATEWAY}/weather/1.0.0/forecast?latitude=51.5&longitude=-0.12&current_weather=true",
@@ -400,8 +411,9 @@ console.log(await res.json());`}</Code>
 res = requests.get(
     "${GATEWAY}/weather/1.0.0/forecast",
     params={"latitude": 51.5, "longitude": -0.12, "current_weather": "true"},
-    headers={"Authorization": f"Bearer {os.environ['ACCESS_TOKEN']}"},
-    verify=False,  # local only: WSO2 uses a self-signed certificate
+    headers={"Authorization": f"Bearer {os.environ['ACCESS_TOKEN']}"},${
+      K ? "\n    verify=False,  # local only: WSO2 uses a self-signed certificate" : ""
+    }
 )
 res.raise_for_status()
 print(res.json())`}</Code>
@@ -410,8 +422,8 @@ print(res.json())`}</Code>
               For long-running services, have your code fetch its own tokens from WSO2 with the
               client-credentials grant, and fetch a new one when it expires:
             </p>
-            <Code>{`curl -k -u "$CONSUMER_KEY:$CONSUMER_SECRET" \\
-  https://localhost:9443/oauth2/token \\
+            <Code>{`curl${insecureFlag(PORTAL_URL)} -u "$CONSUMER_KEY:$CONSUMER_SECRET" \\
+  ${PORTAL_URL}/oauth2/token \\
   -d grant_type=client_credentials`}</Code>
             <p>
               The response&apos;s <code>access_token</code> is the token, and{" "}
@@ -422,7 +434,7 @@ print(res.json())`}</Code>
               On the request&apos;s <strong>Authorization</strong> tab, choose{" "}
               <strong>OAuth 2.0</strong> and configure a new token with grant type{" "}
               <strong>Client Credentials</strong>, access token URL{" "}
-              <code>https://localhost:9443/oauth2/token</code>, your consumer key and secret, and
+              <code>{PORTAL_URL}/oauth2/token</code>, your consumer key and secret, and
               client authentication <strong>Send as Basic Auth header</strong>. Then{" "}
               <strong>Get New Access Token</strong> and <strong>Use Token</strong>. Locally, turn
               off SSL certificate verification in Postman&apos;s settings.
@@ -437,11 +449,11 @@ print(res.json())`}</Code>
           <Section id="automation" title="Automating with the OpenGate API">
             <p>
               Everything in this site is also available as a REST API, which is handy for
-              scripts and CI. Locally it runs on <code>http://localhost:4000</code>, and{" "}
+              scripts and CI. It runs at <code>{API_URL}</code>, and{" "}
               <code>/openapi.json</code> describes every endpoint for Postman, Swagger UI or a
               client generator.
             </p>
-            <Code label="Sign in, create an app, subscribe, get keys and a token">{`API=http://localhost:4000
+            <Code label="Sign in, create an app, subscribe, get keys and a token">{`API=${API_URL}
 
 TOKEN=$(curl -s $API/auth/login -H 'Content-Type: application/json' \\
   -d '{"email":"you@example.com","password":"your-password"}' | jq -r .accessToken)
@@ -464,7 +476,8 @@ curl -s $API/applications/$APP/keys/$MAPPING/token -H "$AUTH" \\
   | jq -r .token.accessToken`}</Code>
             <p>
               OpenGate&apos;s own token (from <code>/auth/login</code>) lasts 15 minutes and is
-              only for OpenGate. API calls through the gateway use the access token from the
+              only for OpenGate. Swap the <code>refreshToken</code> from the same response at{" "}
+              <code>POST /auth/refresh</code> for a new one; each refresh token works once. API calls through the gateway use the access token from the
               last step.
             </p>
           </Section>
@@ -539,7 +552,7 @@ curl -s $API/applications/$APP/keys/$MAPPING/token -H "$AUTH" \\
                 </tr>
                 <tr>
                   <td>Sent back to sign in</td>
-                  <td>Sessions last 15 minutes. Sign in again and you&apos;ll return to where you were.</td>
+                  <td>You signed out, changed your password on another device, or haven&apos;t visited in 30 days. Sign in again and you&apos;ll return to where you were.</td>
                 </tr>
               </tbody>
             </table>
@@ -554,7 +567,7 @@ curl -s $API/applications/$APP/keys/$MAPPING/token -H "$AUTH" \\
             <h3>In the WSO2 Publisher</h3>
             <ol>
               <li>
-                Open <code>https://localhost:9443/publisher</code> and choose{" "}
+                Open <code>{PORTAL_URL}/publisher</code> and choose{" "}
                 <strong>Create API → REST API</strong>. Import an OpenAPI file if you have one,
                 or start from scratch with a name, context, version and backend URL.
               </li>

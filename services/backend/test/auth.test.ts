@@ -110,3 +110,34 @@ describe("auth", () => {
     assert.equal(res.status, 401);
   });
 });
+
+describe("auth rate limit behind a proxy", () => {
+  // Plain fetch: the limiter's 429 body is text, not JSON.
+  const attempt = (server: TestServer, ip: string) =>
+    fetch(`${server.url}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": ip },
+      body: JSON.stringify({ email: "nobody@example.com", password: "wrong-password" }),
+    });
+
+  it("counts each forwarded client separately when TRUST_PROXY is set", async () => {
+    const server = await startTestServer({ trustProxy: 1 });
+    try {
+      for (let i = 0; i < 20; i++) await attempt(server, "203.0.113.1");
+      assert.equal((await attempt(server, "203.0.113.1")).status, 429);
+      assert.equal((await attempt(server, "203.0.113.2")).status, 401);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("ignores X-Forwarded-For when TRUST_PROXY is unset", async () => {
+    const server = await startTestServer();
+    try {
+      for (let i = 0; i < 20; i++) await attempt(server, `203.0.113.${i}`);
+      assert.equal((await attempt(server, "198.51.100.7")).status, 429);
+    } finally {
+      await server.close();
+    }
+  });
+});

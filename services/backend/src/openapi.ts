@@ -54,6 +54,23 @@ export const openApiDocument = {
         required: ["email", "password"],
         properties: { email: { type: "string" }, password: { type: "string", minLength: 8 } },
       },
+      Session: {
+        type: "object",
+        required: ["accessToken", "tokenType", "expiresIn", "refreshToken", "refreshExpiresIn", "user"],
+        properties: {
+          accessToken: { type: "string" },
+          tokenType: { const: "Bearer" },
+          expiresIn: { type: "integer", description: "Seconds the access token lasts (900)" },
+          refreshToken: { type: "string", description: "Single use; send to POST /auth/refresh" },
+          refreshExpiresIn: { type: "integer", description: "Seconds the refresh token lasts (30 days)" },
+          user: ref("User"),
+        },
+      },
+      RefreshRequest: {
+        type: "object",
+        required: ["refreshToken"],
+        properties: { refreshToken: { type: "string" } },
+      },
       Application: {
         type: "object",
         required: ["id", "ownerId", "wso2ApplicationId", "name", "description", "throttlingPolicy", "createdAt"],
@@ -225,21 +242,34 @@ export const openApiDocument = {
     },
     "/auth/login": {
       post: {
-        summary: "Get a 15-minute access token (rate-limited)",
+        summary: "Get a 15-minute access token and a refresh token (rate-limited)",
         requestBody: body(ref("Credentials")),
         responses: {
-          "200": ok("Signed in", {
-            type: "object",
-            properties: {
-              accessToken: { type: "string" },
-              tokenType: { const: "Bearer" },
-              expiresIn: { type: "integer" },
-              user: ref("User"),
-            },
-          }),
+          "200": ok("Signed in", ref("Session")),
           "401": error("Wrong email or password"),
           "429": error("Too many attempts"),
         },
+      },
+    },
+    "/auth/refresh": {
+      post: {
+        summary: "Swap a refresh token for a new access token and the next refresh token",
+        description:
+          "Each refresh token works once. Reusing one after the next has been issued (beyond a few seconds' grace) signs that session out everywhere.",
+        requestBody: body(ref("RefreshRequest")),
+        responses: {
+          "200": ok("Refreshed", ref("Session")),
+          "400": errors["400"],
+          "401": error("Refresh token invalid, used, revoked or expired"),
+          "429": error("Too many requests"),
+        },
+      },
+    },
+    "/auth/logout": {
+      post: {
+        summary: "End the session a refresh token belongs to",
+        requestBody: body(ref("RefreshRequest")),
+        responses: { "204": ok("Signed out"), "400": errors["400"], "429": error("Too many requests") },
       },
     },
     "/auth/me": {
@@ -251,12 +281,19 @@ export const openApiDocument = {
     },
     "/auth/password": {
       post: {
-        summary: "Change your password (rate-limited)",
+        summary: "Change your password and sign out other sessions (rate-limited)",
         security: user,
         requestBody: body({
           type: "object",
           required: ["currentPassword", "newPassword"],
-          properties: { currentPassword: { type: "string" }, newPassword: { type: "string", minLength: 8 } },
+          properties: {
+            currentPassword: { type: "string" },
+            newPassword: { type: "string", minLength: 8 },
+            refreshToken: {
+              type: "string",
+              description: "Keep this session signed in; every other session is signed out.",
+            },
+          },
         }),
         responses: {
           "204": ok("Changed"),

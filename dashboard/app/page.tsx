@@ -1,11 +1,10 @@
 import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { ApiIcon } from "@/app/ui/api-icon";
 import { SiteHeader } from "@/app/ui/site-header";
 import { listCatalog, splitDocsLink, type CatalogApi } from "@/lib/apis";
 import { categoryLabel } from "@/lib/categories";
-import { SESSION_COOKIE } from "@/lib/session";
+import { hasSession } from "@/lib/session";
 
 const STEPS = [
   { title: "Sign up", text: "An email and a password. No WSO2 account needed." },
@@ -35,7 +34,7 @@ const SAMPLE = `curl "https://<gateway>/weather/1.0.0/forecast?latitude=51.5&lon
 { "latitude": 51.49, "longitude": -0.13, "current_weather": { … } }`;
 
 export default async function Home() {
-  const signedIn = (await cookies()).has(SESSION_COOKIE);
+  const signedIn = await hasSession();
   const catalog = await listCatalog().catch(() => [] as CatalogApi[]);
   const preview = catalog.slice(0, 6);
   const primary = signedIn

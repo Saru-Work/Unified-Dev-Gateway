@@ -8,6 +8,11 @@ import type { IUserRepository } from "./repositories/UserRepository";
 import type { IApplicationRepository } from "./repositories/ApplicationRepository";
 import type { PasswordHasher } from "./security/PasswordHasher";
 import type { UserTokenService } from "./security/UserTokenService";
+import type { IRefreshTokenRepository } from "./repositories/RefreshTokenRepository";
+import {
+  RefreshTokenService,
+  type RefreshTokenOptions,
+} from "./security/RefreshTokenService";
 import { requireAuth } from "./security/requireAuth";
 import { AuthService } from "./services/AuthService";
 import { Wso2ApplicationService } from "./services/Wso2ApplicationService";
@@ -31,6 +36,9 @@ export interface AppDependencies {
   applications: IApplicationRepository;
   passwords: PasswordHasher;
   tokens: UserTokenService;
+  refreshTokens: IRefreshTokenRepository;
+  /** Lifetimes and clock for refresh tokens (defaults: 30 days, 30s reuse grace). */
+  refreshTokenOptions?: RefreshTokenOptions;
   wso2: Wso2Transport;
   /** OpenGate's own WSO2 token, used for every call that acts in WSO2. */
   wso2Token: Wso2TokenSource;
@@ -40,6 +48,8 @@ export interface AppDependencies {
   log?: Logger;
   /** Dependency checks behind GET /ready, e.g. { mongo, wso2 }. */
   readinessChecks?: Record<string, ReadinessCheck>;
+  /** Trusted proxy hops, so rate limits see the client's address (see config). */
+  trustProxy?: number;
 }
 
 /** Builds the Express app from its dependencies, so tests can inject fakes. */
@@ -47,7 +57,12 @@ export function createApp(deps: AppDependencies) {
   const authenticate = requireAuth(deps.tokens);
   const wso2 = new RetryWithFreshToken(deps.wso2, deps.wso2Token);
   const authController = new AuthController(
-    new AuthService(deps.users, deps.passwords, deps.tokens),
+    new AuthService(
+      deps.users,
+      deps.passwords,
+      deps.tokens,
+      new RefreshTokenService(deps.refreshTokens, deps.refreshTokenOptions),
+    ),
   );
   const applicationService = new Wso2ApplicationService(wso2, deps.applications);
   const appController = new ApplicationController(
@@ -60,6 +75,7 @@ export function createApp(deps: AppDependencies) {
   const log = deps.log ?? jsonLogger;
   const app = express();
   app.disable("x-powered-by");
+  if (deps.trustProxy !== undefined) app.set("trust proxy", deps.trustProxy);
   app.use(requestLogging(log));
   app.use(express.json({ limit: "100kb" }));
 
