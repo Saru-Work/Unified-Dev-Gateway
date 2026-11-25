@@ -1,7 +1,13 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
 import { rateLimit } from "express-rate-limit";
+import { AppError } from "../errors/AppError";
 import type { AuthController } from "../controllers/AuthController";
+
+/** Sends 429s through the error handler, so they're JSON like every other error. */
+const tooManyRequests: RequestHandler = (_req, _res, next) => {
+  next(new AppError(429, "Too many requests. Try again later."));
+};
 
 export function createAuthRouter(
   controller: AuthController,
@@ -14,6 +20,7 @@ export function createAuthRouter(
     limit: 20,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    handler: tooManyRequests,
   });
 
   // Refresh tokens are 256 random bits, so this only caps runaway clients.
@@ -22,6 +29,7 @@ export function createAuthRouter(
     limit: 300,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    handler: tooManyRequests,
   });
 
   router.post("/register", credentialLimiter, controller.register);
