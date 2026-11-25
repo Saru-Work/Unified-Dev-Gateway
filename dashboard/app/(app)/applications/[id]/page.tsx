@@ -6,10 +6,10 @@ import { CopyButton } from "@/app/copy-button";
 import { PageHeader } from "@/app/ui/page-header";
 import { getApplication } from "@/lib/applications";
 import { formatDate } from "@/lib/format";
+import { readUsageRange, UsageSection } from "../../usage/usage-section";
 import { DeleteApplication } from "./delete-application";
 import { KeysSection } from "./keys-section";
 import { SubscriptionsSection } from "./subscriptions-section";
-import { USAGE_RANGES, UsageSection, type UsageRange } from "./usage-section";
 
 export async function generateMetadata({
   params,
@@ -44,8 +44,7 @@ export default async function ApplicationPage({
   searchParams,
 }: PageProps<"/applications/[id]">) {
   const application = await getApplication((await params).id);
-  const { range: rawRange } = await searchParams;
-  const range: UsageRange = USAGE_RANGES.some((r) => r.value === rawRange) ? (rawRange as UsageRange) : "24h";
+  const range = readUsageRange((await searchParams).range);
 
   return (
     <>
@@ -71,7 +70,11 @@ export default async function ApplicationPage({
       </section>
 
       <Suspense fallback={<div className="h-72 animate-pulse rounded-lg bg-surface" aria-hidden />}>
-        <UsageSection applicationId={application.id} range={range} />
+        <UsageSection
+          path={`/applications/${encodeURIComponent(application.id)}/usage`}
+          range={range}
+          description="Calls this application made through the gateway."
+        />
       </Suspense>
 
       <Suspense fallback={<div className="h-48 animate-pulse rounded-lg bg-surface" aria-hidden />}>

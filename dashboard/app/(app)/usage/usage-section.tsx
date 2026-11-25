@@ -2,7 +2,7 @@ import Link from "next/link";
 import { backend, describeError } from "@/lib/backend";
 import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/session";
-import type { ApplicationUsage } from "@/lib/types";
+import type { Usage } from "@/lib/types";
 import { UsageChart } from "./usage-chart";
 
 export const USAGE_RANGES = [
@@ -11,6 +11,11 @@ export const USAGE_RANGES = [
   { value: "30d", label: "30 days" },
 ] as const;
 export type UsageRange = (typeof USAGE_RANGES)[number]["value"];
+
+/** A `?range=` value, or the last 24 hours if it isn't one. */
+export function readUsageRange(value: string | string[] | undefined): UsageRange {
+  return USAGE_RANGES.find((r) => r.value === value)?.value ?? "24h";
+}
 
 const STATUS_TEXT: Record<number, string> = {
   200: "OK",
@@ -40,18 +45,23 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   );
 }
 
-export async function UsageSection({ applicationId, range }: { applicationId: string; range: UsageRange }) {
+interface UsageSectionProps {
+  /** Backend path that returns the usage: one application's, or the account's. */
+  path: string;
+  range: UsageRange;
+  title?: string;
+  description: string;
+}
+
+export async function UsageSection({ path, range, title = "Usage", description }: UsageSectionProps) {
   const { token } = await requireUser();
-  let usage: ApplicationUsage;
+  let usage: Usage;
   try {
-    usage = await backend<ApplicationUsage>(
-      `/applications/${encodeURIComponent(applicationId)}/usage?range=${range}`,
-      { token },
-    );
+    usage = await backend<Usage>(`${path}?range=${range}`, { token });
   } catch (err) {
     return (
       <section id="usage" className="flex scroll-mt-8 flex-col gap-3">
-        <h2 className="display text-2xl">Usage</h2>
+        <h2 className="display text-2xl">{title}</h2>
         <p className="notice-error">Couldn&apos;t load usage: {describeError(err)}</p>
       </section>
     );
@@ -61,8 +71,8 @@ export async function UsageSection({ applicationId, range }: { applicationId: st
     <section id="usage" className="flex scroll-mt-8 flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="display text-2xl">Usage</h2>
-          <p className="text-sm text-muted">Calls this application made through the gateway.</p>
+          <h2 className="display text-2xl">{title}</h2>
+          <p className="text-sm text-muted">{description}</p>
         </div>
         {usage.enabled && (
           <nav aria-label="Time range" className="inline-flex rounded-md border border-border bg-surface p-0.5 text-xs">
@@ -152,6 +162,34 @@ export async function UsageSection({ applicationId, range }: { applicationId: st
                   </div>
                 </details>
               </div>
+
+              {usage.applications && (
+                <div className="flex flex-col gap-2">
+                  <span className="eyebrow">By application</span>
+                  <table className="w-full overflow-hidden rounded-lg border border-border bg-card text-sm">
+                    <thead className="border-b border-border text-xs text-muted">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-medium">Application</th>
+                        <th className="px-4 py-2 text-right font-medium">Calls</th>
+                        <th className="px-4 py-2 text-right font-medium">Errors</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {usage.applications.map((a) => (
+                        <tr key={a.applicationId}>
+                          <td className="px-4 py-2">
+                            <Link href={`/applications/${a.applicationId}?range=${range}#usage`} className="hover:text-accent">
+                              {a.name}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-xs">{number.format(a.calls)}</td>
+                          <td className="px-4 py-2 text-right font-mono text-xs">{number.format(a.errors)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
                 <div className="flex flex-col gap-2">

@@ -1,4 +1,4 @@
-import { AppWindow, BookOpen, Boxes, LayoutGrid, LogOut, Plus, Settings } from "lucide-react";
+import { AppWindow, BookOpen, Boxes, ChartColumn, LayoutGrid, LogOut, Plus, Settings } from "lucide-react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { logout } from "@/app/actions/auth";
@@ -24,6 +24,7 @@ function Sidebar({ email, theme }: { email: string; theme: Theme }) {
           <NavLink href="/dashboard" icon={<LayoutGrid aria-hidden strokeWidth={1.75} />}>Overview</NavLink>
           <NavLink href="/apis" icon={<Boxes aria-hidden strokeWidth={1.75} />}>API catalog</NavLink>
           <NavLink href="/applications" icon={<AppWindow aria-hidden strokeWidth={1.75} />}>Applications</NavLink>
+          <NavLink href="/usage" icon={<ChartColumn aria-hidden strokeWidth={1.75} />}>Usage</NavLink>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="eyebrow mb-1.5 px-2.5">Help</span>

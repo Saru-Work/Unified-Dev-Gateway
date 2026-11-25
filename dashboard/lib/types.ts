@@ -147,8 +147,8 @@ export interface ApiOperation {
   responses: { status: string; description?: string; example?: unknown }[];
 }
 
-/** An application's calls through the gateway, from GET /applications/:id/usage. */
-export type ApplicationUsage =
+/** Calls through the gateway, from GET /applications/:id/usage or GET /usage. */
+export type Usage =
   | { enabled: false }
   | {
       enabled: true;
@@ -168,4 +168,6 @@ export type ApplicationUsage =
       apis: { apiId: string; apiName: string; calls: number; errors: number; avgLatencyMs?: number }[];
       statuses: { status: number; calls: number }[];
       lastCallAt?: string;
+      /** Only from GET /usage. */
+      applications?: { applicationId: string; name: string; calls: number; errors: number }[];
     };

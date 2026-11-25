@@ -86,9 +86,14 @@ export default async function OverviewPage() {
         title="Your workspace"
         description="Where your applications stand, and what to do next."
         actions={
-          <Link href="/apis" className="button-secondary">
-            Browse APIs
-          </Link>
+          <>
+            <Link href="/usage" className="button-secondary">
+              View usage
+            </Link>
+            <Link href="/apis" className="button-secondary">
+              Browse APIs
+            </Link>
+          </>
         }
       />
 
