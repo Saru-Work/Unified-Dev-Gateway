@@ -10,6 +10,13 @@ export function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : `${dateFormat.format(date)} UTC`;
 }
 
+const percentFormat = new Intl.NumberFormat("en", { style: "percent", maximumFractionDigits: 1 });
+
+/** 0.987 as "98.7%". */
+export function formatPercent(share: number): string {
+  return percentFormat.format(share);
+}
+
 // WSO2 reports "Unlimited" as Integer.MAX_VALUE requests.
 const UNLIMITED_REQUESTS = 2_147_483_647;
 

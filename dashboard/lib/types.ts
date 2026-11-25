@@ -64,6 +64,19 @@ export interface Wso2ApiList {
   list?: Wso2Api[];
 }
 
+/** How an API is doing, from recent gateway traffic. */
+export interface ApiHealth {
+  apiId: string;
+  status: "operational" | "degraded" | "down" | "unknown";
+  successRate?: number;
+  avgLatencyMs?: number;
+}
+
+/** GET /apis/health. */
+export type ApiHealthList =
+  | { enabled: false }
+  | { enabled: true; windowHours: number; apis: ApiHealth[] };
+
 /** State returned by form Server Actions to their `useActionState` forms. */
 export interface FormState {
   error?: string;

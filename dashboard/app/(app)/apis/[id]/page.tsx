@@ -5,10 +5,13 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { CopyButton } from "@/app/copy-button";
 import { ApiIcon } from "@/app/ui/api-icon";
+import { HealthBadge } from "@/app/ui/health-badge";
 import { PageHeader } from "@/app/ui/page-header";
 import { backend, BackendError, describeError } from "@/lib/backend";
 import { apiProperty, providerKeyIncluded, splitDocsLink } from "@/lib/apis";
 import { tagLabel } from "@/lib/categories";
+import { formatPercent } from "@/lib/format";
+import { loadHealth } from "@/lib/health";
 import { requireUser } from "@/lib/session";
 import type { ApiOperation, Application, Wso2ApiDetail } from "@/lib/types";
 import { EndpointsSection } from "./endpoints-section";
@@ -33,14 +36,16 @@ export async function generateMetadata({ params }: PageProps<"/apis/[id]">): Pro
 export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
   const { token } = await requireUser();
   const { id } = await params;
-  const [api, { applications }, docs] = await Promise.all([
+  const [api, { applications }, docs, healthById] = await Promise.all([
     getApi(id),
     backend<{ applications: Application[] }>("/applications", { token }),
     backend<{ operations: ApiOperation[] }>(`/apis/${encodeURIComponent(id)}/operations`).then(
       ({ operations }) => ({ operations, error: undefined }),
       (err: unknown) => ({ operations: [], error: describeError(err) }),
     ),
+    loadHealth(),
   ]);
+  const health = healthById.get(id);
   const tiers = (api.tiers ?? []).map((t) => t.tierName);
   const endpoints = (api.endpointURLs ?? []).flatMap((env) =>
     [env.URLs?.https, env.URLs?.http]
@@ -59,6 +64,7 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
           <span className="flex flex-wrap items-center gap-2">
             API · v{api.version}
             {api.lifeCycleStatus && <span className="badge-success normal-case">{api.lifeCycleStatus.toLowerCase()}</span>}
+            <HealthBadge health={health} />
           </span>
         }
         title={api.name}
@@ -135,6 +141,18 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
               )}
               <dt className="text-muted">Endpoints</dt>
               <dd>{docs.operations.length}</dd>
+              {health?.successRate !== undefined && (
+                <>
+                  <dt className="text-muted">Success rate</dt>
+                  <dd title="Last 6 hours, all applications">{formatPercent(health.successRate)}</dd>
+                </>
+              )}
+              {health?.avgLatencyMs !== undefined && (
+                <>
+                  <dt className="text-muted">Avg latency</dt>
+                  <dd title="Last 6 hours, all applications">{health.avgLatencyMs.toLocaleString("en")} ms</dd>
+                </>
+              )}
               {sharedLimit && (
                 <>
                   <dt className="text-muted">Shared limit</dt>

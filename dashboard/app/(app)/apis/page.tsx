@@ -3,9 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ApiIcon } from "@/app/ui/api-icon";
 import { EmptyState } from "@/app/ui/empty-state";
+import { HealthBadge } from "@/app/ui/health-badge";
 import { PageHeader } from "@/app/ui/page-header";
 import { listCatalog, splitDocsLink, type CatalogApi } from "@/lib/apis";
 import { categoryLabel, tagLabel } from "@/lib/categories";
+import { loadHealth } from "@/lib/health";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "API catalog · OpenGate" };
@@ -32,7 +34,7 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
   const query = typeof q === "string" ? q.trim() : "";
   const tag = typeof rawTag === "string" && rawTag ? rawTag : undefined;
 
-  const all = await listCatalog();
+  const [all, health] = await Promise.all([listCatalog(), loadHealth()]);
   const searched = query ? all.filter((api) => matches(api, query)) : all;
   const apis = tag ? searched.filter((api) => api.tags.includes(tag)) : searched;
 
@@ -122,6 +124,7 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
                             <KeyRound aria-hidden className="size-3" /> Key included
                           </span>
                         )}
+                        <HealthBadge health={health.get(api.id)} problemsOnly />
                       </span>
                       <span className="line-clamp-1 text-sm text-muted">{splitDocsLink(api.description).text}</span>
                     </span>
