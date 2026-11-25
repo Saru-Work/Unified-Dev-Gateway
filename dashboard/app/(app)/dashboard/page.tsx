@@ -8,11 +8,14 @@ import { listCatalog, splitDocsLink, type CatalogApi } from "@/lib/apis";
 import { backend } from "@/lib/backend";
 import { categoryKey } from "@/lib/categories";
 import { formatDate } from "@/lib/format";
+import { byPopularity, loadPopularity } from "@/lib/popularity";
 import { requireUser } from "@/lib/session";
 import type { Application, ApplicationKey, Subscription } from "@/lib/types";
 import { GATEWAY_URL, insecureFlag } from "@/lib/urls";
 
 export const metadata: Metadata = { title: "Overview · OpenGate" };
+
+const PICKS = 5;
 
 /** Subscriptions and keys per app; an app WSO2 can't answer for counts as having none. */
 async function usage(applications: Application[], token: string) {
@@ -48,10 +51,15 @@ function featured(apis: CatalogApi[], count: number): CatalogApi[] {
 
 export default async function OverviewPage() {
   const { token } = await requireUser();
-  const [{ applications }, catalog] = await Promise.all([
+  const [{ applications }, catalog, popularity] = await Promise.all([
     backend<{ applications: Application[] }>("/applications", { token }),
     listCatalog().catch(() => [] as CatalogApi[]),
+    loadPopularity(),
   ]);
+  // What people actually use, once there are enough such APIs to fill the list.
+  const used = byPopularity(catalog.filter((api) => popularity.has(api.id)), popularity);
+  const showPopular = used.length >= PICKS;
+  const picks = showPopular ? used.slice(0, PICKS) : featured(catalog, PICKS);
   const perApp = await usage(applications, token);
   const subscriptions = perApp.reduce((n, a) => n + a.subs, 0);
   const appsWithKeys = perApp.filter((a) => a.keys > 0).length;
@@ -180,11 +188,11 @@ export default async function OverviewPage() {
 
         <section className="flex min-w-0 flex-col gap-4">
           <div className="flex items-baseline justify-between">
-            <h2 className="display text-2xl">From the catalog</h2>
+            <h2 className="display text-2xl">{showPopular ? "Most used APIs" : "From the catalog"}</h2>
             <Link href="/apis" className="text-sm text-accent hover:underline">All {catalog.length} APIs</Link>
           </div>
           <ul className="flex flex-col border-t border-border">
-            {featured(catalog, 5).map((api) => (
+            {picks.map((api) => (
               <li key={api.id}>
                 <Link href={`/apis/${api.id}`} className="group flex items-center gap-3 border-b border-border py-3">
                   <ApiIcon tags={api.tags} size="sm" />

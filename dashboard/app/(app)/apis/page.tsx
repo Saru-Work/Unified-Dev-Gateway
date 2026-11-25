@@ -8,6 +8,7 @@ import { PageHeader } from "@/app/ui/page-header";
 import { listCatalog, splitDocsLink, type CatalogApi } from "@/lib/apis";
 import { categoryLabel, tagLabel } from "@/lib/categories";
 import { loadHealth } from "@/lib/health";
+import { byPopularity, loadPopularity } from "@/lib/popularity";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "API catalog · OpenGate" };
@@ -19,24 +20,39 @@ function matches(api: CatalogApi, query: string): boolean {
   );
 }
 
-/** Link to the catalog with a filter changed, keeping the other one. */
-function href(query: string, tag: string | undefined): string {
+function appCount(n: number): string {
+  return `${n.toLocaleString("en")} application${n === 1 ? "" : "s"}`;
+}
+
+interface Filters {
+  query: string;
+  tag?: string;
+  sort?: "popular";
+}
+
+/** Link to the catalog with some filters changed, keeping the others. */
+function href(current: Filters, changes: Partial<Filters>): string {
+  const { query, tag, sort } = { ...current, ...changes };
   const params = new URLSearchParams();
   if (query) params.set("q", query);
   if (tag) params.set("tag", tag);
+  if (sort) params.set("sort", sort);
   const qs = params.toString();
   return qs ? `/apis?${qs}` : "/apis";
 }
 
 export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
   await requireUser();
-  const { q, tag: rawTag } = await searchParams;
+  const { q, tag: rawTag, sort: rawSort } = await searchParams;
   const query = typeof q === "string" ? q.trim() : "";
   const tag = typeof rawTag === "string" && rawTag ? rawTag : undefined;
+  const sort = rawSort === "popular" ? rawSort : undefined;
+  const filters: Filters = { query, tag, sort };
 
-  const [all, health] = await Promise.all([listCatalog(), loadHealth()]);
+  const [all, health, popularity] = await Promise.all([listCatalog(), loadHealth(), loadPopularity()]);
   const searched = query ? all.filter((api) => matches(api, query)) : all;
-  const apis = tag ? searched.filter((api) => api.tags.includes(tag)) : searched;
+  const inCategory = tag ? searched.filter((api) => api.tags.includes(tag)) : searched;
+  const apis = sort ? byPopularity(inCategory, popularity) : inCategory;
 
   const tagCounts = new Map<string, number>();
   for (const api of searched) for (const t of api.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
@@ -53,6 +69,7 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
       <div className="flex flex-col gap-4">
         <form role="search" className="relative max-w-lg">
           {tag && <input type="hidden" name="tag" value={tag} />}
+          {sort && <input type="hidden" name="sort" value={sort} />}
           <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
             className="field pl-9"
@@ -67,7 +84,7 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
         {tags.length > 0 && (
           <nav aria-label="Categories" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
             <Link
-              href={href(query, undefined)}
+              href={href(filters, { tag: undefined })}
               aria-current={!tag ? "page" : undefined}
               className={!tag ? "font-medium text-foreground underline decoration-accent decoration-2 underline-offset-[6px]" : "text-muted hover:text-foreground"}
             >
@@ -76,11 +93,27 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
             {tags.map(([t, count]) => (
               <Link
                 key={t}
-                href={href(query, t === tag ? undefined : t)}
+                href={href(filters, { tag: t === tag ? undefined : t })}
                 aria-current={t === tag ? "page" : undefined}
                 className={t === tag ? "font-medium text-foreground underline decoration-accent decoration-2 underline-offset-[6px]" : "text-muted hover:text-foreground"}
               >
                 {tagLabel(t)} <span className="font-mono text-xs text-muted">{count}</span>
+              </Link>
+            ))}
+          </nav>
+        )}
+
+        {popularity.size > 0 && (
+          <nav aria-label="Sort" className="flex items-center gap-3 text-sm">
+            <span className="eyebrow">Sort</span>
+            {([["Name", undefined], ["Most used", "popular"]] as const).map(([label, value]) => (
+              <Link
+                key={label}
+                href={href(filters, { sort: value })}
+                aria-current={sort === value ? "true" : undefined}
+                className={sort === value ? "font-medium text-foreground" : "text-muted hover:text-foreground"}
+              >
+                {label}
               </Link>
             ))}
           </nav>
@@ -127,6 +160,11 @@ export default async function ApisPage({ searchParams }: PageProps<"/apis">) {
                         <HealthBadge health={health.get(api.id)} problemsOnly />
                       </span>
                       <span className="line-clamp-1 text-sm text-muted">{splitDocsLink(api.description).text}</span>
+                      {sort && popularity.has(api.id) && (
+                        <span className="font-mono text-[11px] text-muted">
+                          {appCount(popularity.get(api.id) ?? 0)} in the last 30 days
+                        </span>
+                      )}
                     </span>
                   </span>
                   <span className="hidden text-sm text-muted lg:block">{categoryLabel(api.tags)}</span>

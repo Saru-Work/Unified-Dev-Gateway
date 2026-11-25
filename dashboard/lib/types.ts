@@ -77,6 +77,11 @@ export type ApiHealthList =
   | { enabled: false }
   | { enabled: true; windowHours: number; apis: ApiHealth[] };
 
+/** GET /apis/popular, most used first. */
+export type PopularApis =
+  | { enabled: false }
+  | { enabled: true; days: number; apis: { apiId: string; applications: number }[] };
+
 /** State returned by form Server Actions to their `useActionState` forms. */
 export interface FormState {
   error?: string;
