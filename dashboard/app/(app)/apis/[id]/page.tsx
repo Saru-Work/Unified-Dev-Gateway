@@ -12,9 +12,11 @@ import { apiProperty, providerKeyIncluded, splitDocsLink } from "@/lib/apis";
 import { tagLabel } from "@/lib/categories";
 import { formatPercent } from "@/lib/format";
 import { loadHealth } from "@/lib/health";
+import { loadSavedApis } from "@/lib/saved-apis";
 import { requireUser } from "@/lib/session";
 import type { ApiOperation, Application, Wso2ApiDetail } from "@/lib/types";
 import { EndpointsSection } from "./endpoints-section";
+import { SaveButton } from "./save-button";
 import { SubscribeForm } from "./subscribe-form";
 
 const getApi = cache(async (id: string): Promise<Wso2ApiDetail> => {
@@ -36,7 +38,7 @@ export async function generateMetadata({ params }: PageProps<"/apis/[id]">): Pro
 export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
   const { token } = await requireUser();
   const { id } = await params;
-  const [api, { applications }, docs, healthById] = await Promise.all([
+  const [api, { applications }, docs, healthById, saved] = await Promise.all([
     getApi(id),
     backend<{ applications: Application[] }>("/applications", { token }),
     backend<{ operations: ApiOperation[] }>(`/apis/${encodeURIComponent(id)}/operations`).then(
@@ -44,6 +46,7 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
       (err: unknown) => ({ operations: [], error: describeError(err) }),
     ),
     loadHealth(),
+    loadSavedApis(),
   ]);
   const health = healthById.get(id);
   const tiers = (api.tiers ?? []).map((t) => t.tierName);
@@ -70,11 +73,14 @@ export default async function ApiPage({ params }: PageProps<"/apis/[id]">) {
         title={api.name}
         description={text || undefined}
         actions={
-          docsUrl && (
-            <a href={docsUrl} target="_blank" rel="noreferrer" className="button-secondary">
-              Provider docs <ArrowUpRight aria-hidden className="size-4" />
-            </a>
-          )
+          <>
+            <SaveButton apiId={api.id} saved={saved.has(api.id)} />
+            {docsUrl && (
+              <a href={docsUrl} target="_blank" rel="noreferrer" className="button-secondary">
+                Provider docs <ArrowUpRight aria-hidden className="size-4" />
+              </a>
+            )}
+          </>
         }
       />
 
