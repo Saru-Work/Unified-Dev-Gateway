@@ -29,6 +29,7 @@ import type {
   NewRefreshToken,
   RefreshTokenRecord,
 } from "../src/repositories/RefreshTokenRepository";
+import type { ISavedApiRepository, SavedApi } from "../src/repositories/SavedApiRepository";
 import type { PasswordHasher } from "../src/security/PasswordHasher";
 import { UserTokenService } from "../src/security/UserTokenService";
 import type { LogEntry } from "../src/observability/requestLogging";
@@ -163,6 +164,24 @@ export class InMemoryApplicationRepository implements IApplicationRepository {
   }
 }
 
+export class InMemorySavedApiRepository implements ISavedApiRepository {
+  private readonly byUser = new Map<string, SavedApi[]>();
+
+  async list(userId: string): Promise<SavedApi[]> {
+    return this.byUser.get(userId) ?? [];
+  }
+
+  async save(userId: string, apiId: string): Promise<void> {
+    const saved = await this.list(userId);
+    if (saved.some((s) => s.apiId === apiId)) return;
+    this.byUser.set(userId, [{ apiId, savedAt: new Date().toISOString() }, ...saved]);
+  }
+
+  async remove(userId: string, apiId: string): Promise<void> {
+    this.byUser.set(userId, (await this.list(userId)).filter((s) => s.apiId !== apiId));
+  }
+}
+
 /** Reversible "hash" so tests don't pay argon2's deliberate slowness. */
 export const fakeHasher: PasswordHasher = {
   hash: async (password) => `hashed:${password}`,
@@ -253,6 +272,11 @@ export interface TestServer {
     headers?: Record<string, string>,
   ): Promise<{ status: number; body: any }>;
   get(
+    path: string,
+    headers?: Record<string, string>,
+  ): Promise<{ status: number; body: any }>;
+  /** PUT without a body. */
+  put(
     path: string,
     headers?: Record<string, string>,
   ): Promise<{ status: number; body: any }>;
@@ -371,6 +395,7 @@ export async function startTestServer(
     log: (entry) => logs.push(entry),
     users: new InMemoryUserRepository(),
     applications,
+    savedApis: new InMemorySavedApiRepository(),
     passwords: fakeHasher,
     tokens,
     refreshTokens,
@@ -418,6 +443,7 @@ export async function startTestServer(
       ),
     post: (path, body, headers) => request("POST", path, body, headers),
     get: (path, headers) => request("GET", path, undefined, headers),
+    put: (path, headers) => request("PUT", path, undefined, headers),
     patch: (path, body, headers) => request("PATCH", path, body, headers),
     delete: (path, headers) => request("DELETE", path, undefined, headers),
     login: async (email = "dev@example.com") => {

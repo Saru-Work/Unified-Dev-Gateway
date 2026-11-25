@@ -10,6 +10,7 @@ import { UsageRepository } from "./usage/UsageRepository";
 import { UserRepository } from "./repositories/UserRepository";
 import { ApplicationRepository } from "./repositories/ApplicationRepository";
 import { RefreshTokenRepository } from "./repositories/RefreshTokenRepository";
+import { SavedApiRepository } from "./repositories/SavedApiRepository";
 import { PasswordHasher } from "./security/PasswordHasher";
 import { UserTokenService } from "./security/UserTokenService";
 
@@ -40,6 +41,7 @@ async function main() {
   const app = createApp({
     users: new UserRepository(),
     applications: new ApplicationRepository(),
+    savedApis: new SavedApiRepository(),
     passwords: new PasswordHasher(),
     tokens: new UserTokenService(config.jwtSecret),
     refreshTokens: new RefreshTokenRepository(),

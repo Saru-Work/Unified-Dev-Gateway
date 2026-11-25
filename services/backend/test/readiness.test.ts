@@ -9,6 +9,7 @@ import {
   FakeWso2Token,
   InMemoryApplicationRepository,
   InMemoryRefreshTokenRepository,
+  InMemorySavedApiRepository,
   InMemoryUserRepository,
   TEST_SECRET,
   fakeHasher,
@@ -20,6 +21,7 @@ async function serve(readinessChecks: Record<string, ReadinessCheck>) {
   const app = createApp({
     users: new InMemoryUserRepository(),
     applications: new InMemoryApplicationRepository(),
+    savedApis: new InMemorySavedApiRepository(),
     passwords: fakeHasher,
     tokens: new UserTokenService(TEST_SECRET),
     refreshTokens: new InMemoryRefreshTokenRepository(),

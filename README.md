@@ -556,6 +556,9 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | `POST` | `/auth/login` | none | `{email, password}` | `200 {accessToken, tokenType, expiresIn, user}` |
 | `GET` | `/auth/me` | `Authorization` | none | `200 {user}` |
 | `POST` | `/auth/password` | `Authorization` | `{currentPassword, newPassword}` | `204` |
+| `GET` | `/saved-apis` | `Authorization` | none | `200 {apis: [{apiId, savedAt}]}`, newest first |
+| `PUT` | `/saved-apis/:apiId` | `Authorization` | none | `204`; `404` if the API isn't in the catalog |
+| `DELETE` | `/saved-apis/:apiId` | `Authorization` | none | `204` |
 | `GET` | `/throttling-policies/:level` | `Authorization` | none (`level` = `application` \| `subscription`) | `200 {policies}` |
 | `POST` | `/applications` | `Authorization` | `{name, description?, throttlingPolicy? = "Unlimited"}` | `201 {application}` |
 | `GET` | `/applications` | `Authorization` | none | `200 {applications}` |

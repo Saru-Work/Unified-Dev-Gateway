@@ -166,6 +166,9 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 | `POST` | `/auth/login` | none, rate-limited | `{ email, password }` → `{ accessToken, tokenType: "Bearer", expiresIn: 900, user }`. Unknown user and wrong password both give the same `401`. |
 | `GET`  | `/auth/me` | OpenGate JWT | `{ user }` |
 | `POST` | `/auth/password` | OpenGate JWT, rate-limited | `{ currentPassword, newPassword }` → `204`. Wrong current password → `403` (checked first); new one needs 8+ chars and must differ. Issued tokens stay valid until they expire. |
+| `GET` | `/saved-apis` | OpenGate JWT | `{ apis: [{ apiId, savedAt }] }`, newest first |
+| `PUT` | `/saved-apis/:apiId` | OpenGate JWT | `204`, idempotent. Reads the API from WSO2 first, so only public ones can be saved. |
+| `DELETE` | `/saved-apis/:apiId` | OpenGate JWT | `204`, idempotent. Doesn't call WSO2, so a retired API can still be removed. |
 | `GET` | `/throttling-policies/:level` | OpenGate JWT | `level` is `application` or `subscription` (else `404`) → `{ policies: [{ name, displayName?, description?, requestCount?, unitTime?, timeUnit? }] }` |
 | `POST` | `/applications` | OpenGate JWT | `{ name, description?, throttlingPolicy? }` → `201 { application }`. The policy defaults to `Unlimited`. |
 | `GET`  | `/applications` | OpenGate JWT | `{ applications: [...] }`, the caller's apps, newest first |
@@ -278,6 +281,9 @@ createdAt / updatedAt                  description        string  default ""
                                        throttlingPolicy   string  default "Unlimited"
                                        createdAt / updatedAt
 ```
+
+`savedapis` (`userId` + `apiId`, unique together, and `createdAt`): the APIs
+each user has saved.
 
 `usageevents` (one per gateway call: `correlationId` unique,
 `wso2ApplicationId`, `apiId`, `apiName`, `resource`, `method`, `status`,

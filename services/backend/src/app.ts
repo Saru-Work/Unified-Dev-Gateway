@@ -6,6 +6,7 @@ import {
 } from "./integrations/wso2/Wso2TokenProvider";
 import type { IUserRepository } from "./repositories/UserRepository";
 import type { IApplicationRepository } from "./repositories/ApplicationRepository";
+import type { ISavedApiRepository } from "./repositories/SavedApiRepository";
 import type { PasswordHasher } from "./security/PasswordHasher";
 import type { UserTokenService } from "./security/UserTokenService";
 import type { IRefreshTokenRepository } from "./repositories/RefreshTokenRepository";
@@ -22,6 +23,7 @@ import { AuthController } from "./controllers/AuthController";
 import { ApplicationController } from "./controllers/ApplicationController";
 import { createAuthRouter } from "./routes/authRouter";
 import { createApplicationRouter } from "./routes/applicationRouter";
+import { createSavedApiRouter } from "./routes/savedApiRouter";
 import { createPolicyRouter } from "./routes/policyRouter";
 import { openApiDocument } from "./openapi";
 import { toOperations } from "./services/apiOperations";
@@ -36,6 +38,7 @@ import { jsonLogger, requestLogging, type Logger } from "./observability/request
 export interface AppDependencies {
   users: IUserRepository;
   applications: IApplicationRepository;
+  savedApis: ISavedApiRepository;
   passwords: PasswordHasher;
   tokens: UserTokenService;
   refreshTokens: IRefreshTokenRepository;
@@ -148,6 +151,7 @@ export function createApp(deps: AppDependencies) {
 
   app.use("/auth", createAuthRouter(authController, authenticate));
   app.use("/applications", createApplicationRouter(appController, authenticate));
+  app.use("/saved-apis", createSavedApiRouter(deps.savedApis, deps.wso2, authenticate));
   app.use(
     "/throttling-policies",
     createPolicyRouter(new PolicyService(wso2), authenticate, deps.wso2Token),

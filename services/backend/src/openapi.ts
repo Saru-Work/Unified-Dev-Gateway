@@ -361,6 +361,41 @@ export const openApiDocument = {
         },
       },
     },
+    "/saved-apis": {
+      get: {
+        summary: "The APIs you've saved, most recent first",
+        security: user,
+        responses: {
+          "200": ok("Saved APIs", {
+            type: "object",
+            properties: {
+              apis: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["apiId", "savedAt"],
+                  properties: { apiId: { type: "string" }, savedAt: { type: "string", format: "date-time" } },
+                },
+              },
+            },
+          }),
+          "401": errors["401"],
+        },
+      },
+    },
+    "/saved-apis/{apiId}": {
+      parameters: [{ name: "apiId", in: "path", required: true, schema: { type: "string" } }],
+      put: {
+        summary: "Save an API (repeating it changes nothing)",
+        security: user,
+        responses: { "204": ok("Saved"), "401": errors["401"], "404": error("No such public API"), "502": errors["502"] },
+      },
+      delete: {
+        summary: "Remove a saved API, even one no longer published",
+        security: user,
+        responses: { "204": ok("Removed"), "401": errors["401"] },
+      },
+    },
     "/throttling-policies/{level}": {
       get: {
         summary: "WSO2 throttling policies at one level",
