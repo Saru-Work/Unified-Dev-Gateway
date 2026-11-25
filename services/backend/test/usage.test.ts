@@ -225,6 +225,29 @@ describe("GET /applications/:id/usage", () => {
     assert.deepEqual(week.body.apis.map((a: { apiName: string }) => a.apiName), ["Alpha", "Beta"]);
   });
 
+  it("adds up all of one account's applications, and only those", async () => {
+    server.wso2.respond = () => ({ status: 201, data: { applicationId: "wso2-app-2" } });
+    const second = (await server.post("/applications", { name: "second" }, alice)).body.application.id;
+    await usage.insertMany([
+      { correlationId: "5", timestamp: new Date(), wso2ApplicationId: "wso2-app-2", apiId: "a", apiName: "Alpha", status: 200 },
+    ]);
+
+    const res = await server.get("/usage?range=7d", alice);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.totals.calls, 4);
+    assert.deepEqual(res.body.applications, [
+      { applicationId: appId, name: "app", calls: 3, errors: 1 },
+      { applicationId: second, name: "second", calls: 1, errors: 0 },
+    ]);
+
+    const none = await server.get("/usage", bob);
+    assert.equal(none.body.totals.calls, 0);
+    assert.deepEqual(none.body.applications, []);
+    assert.equal((await server.get("/usage?range=1y", alice)).status, 400);
+    assert.equal((await server.get("/usage?range=7d&range=30d", alice)).status, 400);
+    assert.equal((await server.get("/usage")).status, 401);
+  });
+
   it("returns 404 for another user's application", async () => {
     assert.equal((await server.get(`/applications/${appId}/usage`, bob)).status, 404);
   });

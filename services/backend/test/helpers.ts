@@ -8,6 +8,7 @@ import type { UsageEvent } from "../src/usage/metricsLog";
 import {
   truncate,
   type ApiPopularityRow,
+  type ApplicationCallsRow,
   type IUsageRepository,
   type LogCursor,
   type UsageQuery,
@@ -302,9 +303,9 @@ export class InMemoryUsageRepository implements IUsageRepository {
     for (const e of events) if (!this.events.has(e.correlationId)) this.events.set(e.correlationId, e);
   }
 
-  private matching(q: { wso2ApplicationId: string; from: Date; to: Date }): UsageEvent[] {
+  private matching(q: { wso2ApplicationIds: string[]; from: Date; to: Date }): UsageEvent[] {
     return [...this.events.values()].filter(
-      (e) => e.wso2ApplicationId === q.wso2ApplicationId && e.timestamp >= q.from && e.timestamp < q.to,
+      (e) => q.wso2ApplicationIds.includes(e.wso2ApplicationId) && e.timestamp >= q.from && e.timestamp < q.to,
     );
   }
 
@@ -334,9 +335,20 @@ export class InMemoryUsageRepository implements IUsageRepository {
     return values.length ? values[Math.ceil(0.95 * values.length) - 1] : undefined;
   }
 
-  async lastCallAt(wso2ApplicationId: string): Promise<Date | undefined> {
+  async callsByApplication(q: Omit<UsageQuery, "unit">): Promise<ApplicationCallsRow[]> {
+    const rows = new Map<string, ApplicationCallsRow>();
+    for (const e of this.matching(q)) {
+      const row = rows.get(e.wso2ApplicationId) ?? { wso2ApplicationId: e.wso2ApplicationId, calls: 0, errors: 0 };
+      row.calls++;
+      if (e.status >= 400) row.errors++;
+      rows.set(e.wso2ApplicationId, row);
+    }
+    return [...rows.values()];
+  }
+
+  async lastCallAt(wso2ApplicationIds: string[]): Promise<Date | undefined> {
     const times = [...this.events.values()]
-      .filter((e) => e.wso2ApplicationId === wso2ApplicationId)
+      .filter((e) => wso2ApplicationIds.includes(e.wso2ApplicationId))
       .map((e) => e.timestamp.getTime());
     return times.length ? new Date(Math.max(...times)) : undefined;
   }

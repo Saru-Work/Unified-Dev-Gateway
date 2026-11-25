@@ -17,7 +17,8 @@ export interface UsageRollupRow {
 }
 
 export interface UsageQuery {
-  wso2ApplicationId: string;
+  /** The applications to count; none means no calls. */
+  wso2ApplicationIds: string[];
   from: Date;
   to: Date;
   unit: BucketUnit;
@@ -27,6 +28,12 @@ export interface UsageQuery {
 export interface LogCursor {
   ino: string;
   offset: number;
+}
+
+export interface ApplicationCallsRow {
+  wso2ApplicationId: string;
+  calls: number;
+  errors: number;
 }
 
 /** How widely an API is used. */
@@ -42,8 +49,10 @@ export interface IUsageRepository {
   rollup(query: UsageQuery): Promise<UsageRollupRow[]>;
   /** The 95th percentile latency, or undefined if there are no timed calls. */
   latencyP95(query: Omit<UsageQuery, "unit">): Promise<number | undefined>;
-  /** When the application's most recent call happened, if ever. */
-  lastCallAt(wso2ApplicationId: string): Promise<Date | undefined>;
+  /** Calls and errors (4xx and 5xx) per application; ones without calls are left out. */
+  callsByApplication(query: Omit<UsageQuery, "unit">): Promise<ApplicationCallsRow[]>;
+  /** When the applications' most recent call happened, if ever. */
+  lastCallAt(wso2ApplicationIds: string[]): Promise<Date | undefined>;
   /** Calls, server errors and latency per API, across all applications. */
   healthByApi(from: Date, to: Date): Promise<ApiHealthRow[]>;
   /** The most widely used APIs, most applications first (then most calls). */
@@ -78,9 +87,9 @@ export class UsageRepository implements IUsageRepository {
     }
   }
 
-  async rollup({ wso2ApplicationId, from, to, unit }: UsageQuery): Promise<UsageRollupRow[]> {
+  async rollup({ wso2ApplicationIds, from, to, unit }: UsageQuery): Promise<UsageRollupRow[]> {
     const pipeline: PipelineStage[] = [
-      { $match: { wso2ApplicationId, timestamp: { $gte: from, $lt: to } } },
+      { $match: { wso2ApplicationId: { $in: wso2ApplicationIds }, timestamp: { $gte: from, $lt: to } } },
       {
         $group: {
           _id: {
@@ -113,17 +122,35 @@ export class UsageRepository implements IUsageRepository {
     }));
   }
 
-  async latencyP95({ wso2ApplicationId, from, to }: Omit<UsageQuery, "unit">): Promise<number | undefined> {
+  async latencyP95({ wso2ApplicationIds, from, to }: Omit<UsageQuery, "unit">): Promise<number | undefined> {
     const [row] = await usageEventModel.aggregate<{ p: number[] }>([
-      { $match: { wso2ApplicationId, timestamp: { $gte: from, $lt: to }, latencyMs: { $exists: true } } },
+      { $match: { wso2ApplicationId: { $in: wso2ApplicationIds }, timestamp: { $gte: from, $lt: to }, latencyMs: { $exists: true } } },
       { $group: { _id: null, p: { $percentile: { input: "$latencyMs", p: [0.95], method: "approximate" } } } },
     ]);
     return row?.p?.[0];
   }
 
-  async lastCallAt(wso2ApplicationId: string): Promise<Date | undefined> {
+  async callsByApplication({
+    wso2ApplicationIds,
+    from,
+    to,
+  }: Omit<UsageQuery, "unit">): Promise<ApplicationCallsRow[]> {
+    const rows = await usageEventModel.aggregate<{ _id: string; calls: number; errors: number }>([
+      { $match: { wso2ApplicationId: { $in: wso2ApplicationIds }, timestamp: { $gte: from, $lt: to } } },
+      {
+        $group: {
+          _id: "$wso2ApplicationId",
+          calls: { $sum: 1 },
+          errors: { $sum: { $cond: [{ $gte: ["$status", 400] }, 1, 0] } },
+        },
+      },
+    ]);
+    return rows.map((r) => ({ wso2ApplicationId: r._id, calls: r.calls, errors: r.errors }));
+  }
+
+  async lastCallAt(wso2ApplicationIds: string[]): Promise<Date | undefined> {
     const doc = await usageEventModel
-      .findOne({ wso2ApplicationId }, { timestamp: 1 })
+      .findOne({ wso2ApplicationId: { $in: wso2ApplicationIds } }, { timestamp: 1 })
       .sort({ timestamp: -1 })
       .lean();
     return doc?.timestamp;

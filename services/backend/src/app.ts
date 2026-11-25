@@ -19,6 +19,7 @@ import { AuthService } from "./services/AuthService";
 import { Wso2ApplicationService } from "./services/Wso2ApplicationService";
 import { SubscriptionService } from "./services/SubscriptionService";
 import { PolicyService } from "./services/PolicyService";
+import { UsageService } from "./services/UsageService";
 import { AuthController } from "./controllers/AuthController";
 import { ApplicationController } from "./controllers/ApplicationController";
 import { createAuthRouter } from "./routes/authRouter";
@@ -79,7 +80,7 @@ export function createApp(deps: AppDependencies) {
     applicationService,
     new SubscriptionService(wso2, applicationService),
     deps.wso2Token,
-    deps.usage,
+    deps.usage && new UsageService(deps.usage),
   );
 
   const log = deps.log ?? jsonLogger;
@@ -151,6 +152,7 @@ export function createApp(deps: AppDependencies) {
 
   app.use("/auth", createAuthRouter(authController, authenticate));
   app.use("/applications", createApplicationRouter(appController, authenticate));
+  app.get("/usage", authenticate, appController.accountUsage);
   app.use("/saved-apis", createSavedApiRouter(deps.savedApis, deps.wso2, authenticate));
   app.use(
     "/throttling-policies",

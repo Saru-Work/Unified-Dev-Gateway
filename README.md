@@ -566,6 +566,7 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | `PATCH` | `/applications/:id` | `Authorization` | `{name?, description?, throttlingPolicy?}` | `200 {application}` |
 | `DELETE` | `/applications/:id` | `Authorization` | none | `204` |
 | `GET` | `/applications/:id/usage` | `Authorization` | `?range=24h\|7d\|30d` | `200 {enabled, totals, series, apis, statuses, lastCallAt}`, or `{enabled: false}` when usage isn't collected |
+| `GET` | `/usage` | `Authorization` | `?range=24h\|7d\|30d` | `200` as above for all your applications, plus `applications: [{applicationId, name, calls, errors}]` |
 | `GET` | `/applications/:id/keys` | `Authorization` | none | `200 {keys}` (no secrets) |
 | `POST` | `/applications/:id/keys` | `Authorization` | `{keyType: "PRODUCTION" \| "SANDBOX"}` | `201 {key}` incl. `consumerSecret`, shown once |
 | `DELETE` | `/applications/:id/keys/:keyMappingId` | `Authorization` | none | `204`; revokes the secret and its tokens. `404` if the app has no such keys |

@@ -4,8 +4,8 @@ import type { Wso2ApplicationService } from "../services/Wso2ApplicationService"
 import type { SubscriptionService } from "../services/SubscriptionService";
 import { AppError } from "../errors/AppError";
 import type { Wso2TokenSource } from "../integrations/wso2/Wso2TokenProvider";
-import type { IUsageRepository } from "../usage/UsageRepository";
-import { rangeWindow, summarize, USAGE_RANGES, type UsageRange } from "../usage/summarize";
+import { readRange, type UsageService } from "../services/UsageService";
+
 /** Optional throttlingPolicy field: absent → undefined, otherwise a non-empty string. */
 function readThrottlingPolicy(value: unknown): string | undefined {
   if (value === undefined) return undefined;
@@ -21,7 +21,7 @@ export class ApplicationController {
     private readonly subscriptions: SubscriptionService,
     private readonly wso2Token: Wso2TokenSource,
     /** Absent when no gateway metrics log is configured. */
-    private readonly usageRepository?: IUsageRepository,
+    private readonly usageService?: UsageService,
   ) {}
 
   create = async (req: Request, res: Response) => {
@@ -162,22 +162,22 @@ export class ApplicationController {
 
   usage = async (req: Request<{ id: string }>, res: Response) => {
     const app = await this.service.get(res.locals.userId as string, req.params.id);
-    const range = (req.query.range ?? "24h") as UsageRange;
-    if (typeof range !== "string" || !Object.hasOwn(USAGE_RANGES, range)) {
-      throw new AppError(400, `range must be one of ${Object.keys(USAGE_RANGES).join(", ")}`);
-    }
-    if (!this.usageRepository) {
+    const range = readRange(req.query.range);
+    if (!this.usageService) {
       res.json({ enabled: false });
       return;
     }
-    const { from, to, unit } = rangeWindow(range, new Date());
-    const query = { wso2ApplicationId: app.wso2ApplicationId, from, to };
-    const [rows, p95, lastCallAt] = await Promise.all([
-      this.usageRepository.rollup({ ...query, unit }),
-      this.usageRepository.latencyP95(query),
-      this.usageRepository.lastCallAt(app.wso2ApplicationId),
-    ]);
-    res.json(summarize(rows, { range, from, to, unit, p95, lastCallAt }));
+    res.json(await this.usageService.summary([app], range));
+  };
+
+  accountUsage = async (req: Request, res: Response) => {
+    const range = readRange(req.query.range);
+    if (!this.usageService) {
+      res.json({ enabled: false });
+      return;
+    }
+    const applications = await this.service.list(res.locals.userId as string);
+    res.json(await this.usageService.account(applications, range));
   };
 
   listSubscriptions = async (req: Request<{ id: string }>, res: Response) => {

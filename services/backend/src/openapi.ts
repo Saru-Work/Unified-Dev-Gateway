@@ -563,6 +563,16 @@ export const openApiDocument = {
         },
       },
     },
+    "/usage": {
+      get: {
+        summary: "Calls all your applications made through the gateway",
+        description:
+          "Like /applications/{id}/usage, plus `applications`: calls and errors for each one, busiest first.",
+        security: user,
+        parameters: [{ name: "range", in: "query", schema: { enum: ["24h", "7d", "30d"], default: "24h" } }],
+        responses: { "200": ok("Usage", { type: "object" }), "400": errors["400"], "401": errors["401"] },
+      },
+    },
     "/applications/{id}/subscriptions": {
       parameters: [idParam],
       get: {
