@@ -26,6 +26,8 @@ import { createPolicyRouter } from "./routes/policyRouter";
 import { openApiDocument } from "./openapi";
 import { toOperations } from "./services/apiOperations";
 import type { IUsageRepository } from "./usage/UsageRepository";
+import { cached } from "./usage/cached";
+import { apiHealth, HEALTH_WINDOW_HOURS } from "./usage/health";
 import { createErrorHandler } from "./errors/errorHandler";
 import { AppError } from "./errors/AppError";
 import { readinessHandler, type ReadinessCheck } from "./observability/readiness";
@@ -51,6 +53,9 @@ export interface AppDependencies {
   /** Trusted proxy hops, so rate limits see the client's address (see config). */
   trustProxy?: number;
 }
+
+/** How long results computed across every application are reused. */
+const INSIGHTS_CACHE_MS = 30_000;
 
 /** Builds the Express app from its dependencies, so tests can inject fakes. */
 export function createApp(deps: AppDependencies) {
@@ -103,6 +108,16 @@ export function createApp(deps: AppDependencies) {
     }
     const result = await deps.wso2.get(query.size ? `/apis?${query}` : "/apis");
     res.status(result.status).json(result.data);
+  });
+
+  const { usage } = deps;
+  const health = usage && cached(() => apiHealth(usage, new Date()), INSIGHTS_CACHE_MS);
+  app.get("/apis/health", async (_req, res) => {
+    if (!health) {
+      res.json({ enabled: false });
+      return;
+    }
+    res.json({ enabled: true, windowHours: HEALTH_WINDOW_HOURS, apis: await health() });
   });
 
   app.get("/apis/:id", async (req, res) => {

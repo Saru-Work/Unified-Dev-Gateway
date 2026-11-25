@@ -1,5 +1,6 @@
 import type { PipelineStage } from "mongoose";
 import { usageCursorModel, usageEventModel } from "../models/UsageEventModel";
+import type { ApiHealthRow } from "./health";
 import type { UsageEvent } from "./metricsLog";
 
 export type BucketUnit = "hour" | "day";
@@ -36,6 +37,8 @@ export interface IUsageRepository {
   latencyP95(query: Omit<UsageQuery, "unit">): Promise<number | undefined>;
   /** When the application's most recent call happened, if ever. */
   lastCallAt(wso2ApplicationId: string): Promise<Date | undefined>;
+  /** Calls, server errors and latency per API, across all applications. */
+  healthByApi(from: Date, to: Date): Promise<ApiHealthRow[]>;
   getCursor(file: string): Promise<LogCursor | null>;
   saveCursor(file: string, cursor: LogCursor): Promise<void>;
 }
@@ -115,6 +118,33 @@ export class UsageRepository implements IUsageRepository {
       .sort({ timestamp: -1 })
       .lean();
     return doc?.timestamp;
+  }
+
+  async healthByApi(from: Date, to: Date): Promise<ApiHealthRow[]> {
+    const rows = await usageEventModel.aggregate<{
+      _id: string;
+      calls: number;
+      serverErrors: number;
+      avgLatencyMs: number | null;
+    }>([
+      { $match: { timestamp: { $gte: from, $lt: to } } },
+      {
+        $group: {
+          _id: "$apiId",
+          calls: { $sum: 1 },
+          serverErrors: { $sum: { $cond: [{ $gte: ["$status", 500] }, 1, 0] } },
+          // $avg skips events without a latency, and is null if none has one.
+          avgLatencyMs: { $avg: "$latencyMs" },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+    return rows.map((r) => ({
+      apiId: r._id,
+      calls: r.calls,
+      serverErrors: r.serverErrors,
+      ...(r.avgLatencyMs !== null && { avgLatencyMs: r.avgLatencyMs }),
+    }));
   }
 
   async getCursor(file: string): Promise<LogCursor | null> {

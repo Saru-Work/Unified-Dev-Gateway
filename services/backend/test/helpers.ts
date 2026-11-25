@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { createApp } from "../src/app";
 import type { HttpResult, Wso2Transport } from "../src/integrations/wso2/client";
 import type { Wso2TokenSource } from "../src/integrations/wso2/Wso2TokenProvider";
+import type { ApiHealthRow } from "../src/usage/health";
 import type { UsageEvent } from "../src/usage/metricsLog";
 import {
   truncate,
@@ -313,6 +314,22 @@ export class InMemoryUsageRepository implements IUsageRepository {
       .filter((e) => e.wso2ApplicationId === wso2ApplicationId)
       .map((e) => e.timestamp.getTime());
     return times.length ? new Date(Math.max(...times)) : undefined;
+  }
+
+  async healthByApi(from: Date, to: Date): Promise<ApiHealthRow[]> {
+    const byApi = new Map<string, UsageEvent[]>();
+    for (const e of this.events.values()) {
+      if (e.timestamp >= from && e.timestamp < to) byApi.set(e.apiId, [...(byApi.get(e.apiId) ?? []), e]);
+    }
+    return [...byApi].sort().map(([apiId, events]) => {
+      const timed = events.flatMap((e) => (e.latencyMs === undefined ? [] : [e.latencyMs]));
+      return {
+        apiId,
+        calls: events.length,
+        serverErrors: events.filter((e) => e.status >= 500).length,
+        ...(timed.length > 0 && { avgLatencyMs: timed.reduce((a, b) => a + b, 0) / timed.length }),
+      };
+    });
   }
 
   async getCursor(file: string): Promise<LogCursor | null> {

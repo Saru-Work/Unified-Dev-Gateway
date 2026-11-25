@@ -158,6 +158,7 @@ All bodies are JSON. Errors always have the shape `{ "message": string, "details
 | `GET`  | `/ready` | none | Readiness: pings Mongo and calls WSO2 `GET /apis` (any HTTP answer counts), in parallel with a 3s timeout each. `200 { status: "ready", checks }` or `503` with the failed check marked `"failed"`; reasons are logged only. Compose health-checks the backend with it. |
 | `GET`  | `/openapi.json` | none | OpenAPI 3.1 description of this table |
 | `GET`  | `/apis` | none | Proxies the WSO2 DevPortal `GET /apis` (only publicly visible APIs) |
+| `GET`  | `/apis/health` | none | Health per API from the last 6 hours of gateway traffic across all applications (`src/usage/health.ts`): `down` from 50% 5xx, `degraded` from 5%, `unknown` under 5 calls. 4xx and 429 don't count. Call counts aren't exposed. Cached for 30 seconds. `{ enabled: false }` without `USAGE_METRICS_LOG`. |
 | `GET`  | `/apis/:id` | none | Proxies `GET /apis/{id}` (details, including subscription `tiers`). The id is URL-encoded. |
 | `GET`  | `/apis/:id/operations` | none | Reads `GET /apis/{id}/swagger` and flattens it with `services/apiOperations.ts` into `{ operations: [{ method, path, summary?, description?, parameters, requestBody?, responses }] }`. Handles OpenAPI 3 and Swagger 2, path-level parameters, and local `$ref`s (with a depth limit against cycles). |
 | `POST` | `/auth/register` | none, rate-limited | `{ email, password }` → `201 { user }`. Password ≥ 8 chars. Email is trimmed and lowercased. Duplicate → `409`. |

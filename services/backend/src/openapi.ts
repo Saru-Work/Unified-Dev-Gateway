@@ -168,6 +168,16 @@ export const openApiDocument = {
           status: { type: "string" },
         },
       },
+      ApiHealth: {
+        type: "object",
+        required: ["apiId", "status"],
+        properties: {
+          apiId: { type: "string" },
+          status: { enum: ["operational", "degraded", "down", "unknown"] },
+          successRate: { type: "number", minimum: 0, maximum: 1, description: "Share of calls that weren't 5xx" },
+          avgLatencyMs: { type: "integer" },
+        },
+      },
       ThrottlingPolicy: {
         type: "object",
         required: ["name"],
@@ -206,6 +216,26 @@ export const openApiDocument = {
           { name: "offset", in: "query", schema: { type: "integer", minimum: 0 } },
         ],
         responses: { "200": ok("WSO2 API list", { type: "object" }), "400": errors["400"] },
+      },
+    },
+    "/apis/health": {
+      get: {
+        summary: "How each recently called API is doing, judged by real gateway traffic",
+        description:
+          "Covers the last 6 hours across all applications; only 5xx responses count against an API. " +
+          "`unknown` means too few calls to judge, and APIs with none are left out. " +
+          "`{ enabled: false }` when the backend isn't collecting usage.",
+        responses: {
+          "200": ok("Health", {
+            type: "object",
+            required: ["enabled"],
+            properties: {
+              enabled: { type: "boolean" },
+              windowHours: { type: "integer" },
+              apis: { type: "array", items: ref("ApiHealth") },
+            },
+          }),
+        },
       },
     },
     "/apis/{id}": {
