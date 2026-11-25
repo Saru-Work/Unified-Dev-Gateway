@@ -56,6 +56,8 @@ export interface AppDependencies {
 
 /** How long results computed across every application are reused. */
 const INSIGHTS_CACHE_MS = 30_000;
+const POPULAR_DAYS = 30;
+const POPULAR_LIMIT = 100;
 
 /** Builds the Express app from its dependencies, so tests can inject fakes. */
 export function createApp(deps: AppDependencies) {
@@ -118,6 +120,20 @@ export function createApp(deps: AppDependencies) {
       return;
     }
     res.json({ enabled: true, windowHours: HEALTH_WINDOW_HOURS, apis: await health() });
+  });
+
+  const popular =
+    usage &&
+    cached(() => {
+      const now = new Date();
+      return usage.popularApis(new Date(now.getTime() - POPULAR_DAYS * 86_400_000), now, POPULAR_LIMIT);
+    }, INSIGHTS_CACHE_MS);
+  app.get("/apis/popular", async (_req, res) => {
+    if (!popular) {
+      res.json({ enabled: false });
+      return;
+    }
+    res.json({ enabled: true, days: POPULAR_DAYS, apis: await popular() });
   });
 
   app.get("/apis/:id", async (req, res) => {

@@ -238,6 +238,33 @@ export const openApiDocument = {
         },
       },
     },
+    "/apis/popular": {
+      get: {
+        summary: "The most widely used APIs of the last 30 days",
+        description:
+          "Ranked by how many applications called them successfully, then by calls. " +
+          "`{ enabled: false }` when the backend isn't collecting usage.",
+        responses: {
+          "200": ok("Popular APIs, most used first", {
+            type: "object",
+            required: ["enabled"],
+            properties: {
+              enabled: { type: "boolean" },
+              days: { type: "integer" },
+              apis: {
+                type: "array",
+                maxItems: 100,
+                items: {
+                  type: "object",
+                  required: ["apiId", "applications"],
+                  properties: { apiId: { type: "string" }, applications: { type: "integer" } },
+                },
+              },
+            },
+          }),
+        },
+      },
+    },
     "/apis/{id}": {
       get: {
         summary: "One WSO2 API, including its subscription tiers",

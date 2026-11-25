@@ -7,6 +7,7 @@ import type { ApiHealthRow } from "../src/usage/health";
 import type { UsageEvent } from "../src/usage/metricsLog";
 import {
   truncate,
+  type ApiPopularityRow,
   type IUsageRepository,
   type LogCursor,
   type UsageQuery,
@@ -330,6 +331,21 @@ export class InMemoryUsageRepository implements IUsageRepository {
         ...(timed.length > 0 && { avgLatencyMs: timed.reduce((a, b) => a + b, 0) / timed.length }),
       };
     });
+  }
+
+  async popularApis(from: Date, to: Date, limit: number): Promise<ApiPopularityRow[]> {
+    const byApi = new Map<string, { apps: Set<string>; calls: number }>();
+    for (const e of this.events.values()) {
+      if (e.timestamp < from || e.timestamp >= to || e.status >= 400) continue;
+      const api = byApi.get(e.apiId) ?? { apps: new Set<string>(), calls: 0 };
+      api.apps.add(e.wso2ApplicationId);
+      api.calls++;
+      byApi.set(e.apiId, api);
+    }
+    return [...byApi]
+      .sort(([a, x], [b, y]) => y.apps.size - x.apps.size || y.calls - x.calls || a.localeCompare(b))
+      .slice(0, limit)
+      .map(([apiId, { apps }]) => ({ apiId, applications: apps.size }));
   }
 
   async getCursor(file: string): Promise<LogCursor | null> {

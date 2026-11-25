@@ -29,6 +29,13 @@ export interface LogCursor {
   offset: number;
 }
 
+/** How widely an API is used. */
+export interface ApiPopularityRow {
+  apiId: string;
+  /** Distinct applications that got at least one successful response. */
+  applications: number;
+}
+
 export interface IUsageRepository {
   /** Stores events, silently skipping ones already stored. */
   insertMany(events: UsageEvent[]): Promise<void>;
@@ -39,6 +46,8 @@ export interface IUsageRepository {
   lastCallAt(wso2ApplicationId: string): Promise<Date | undefined>;
   /** Calls, server errors and latency per API, across all applications. */
   healthByApi(from: Date, to: Date): Promise<ApiHealthRow[]>;
+  /** The most widely used APIs, most applications first (then most calls). */
+  popularApis(from: Date, to: Date, limit: number): Promise<ApiPopularityRow[]>;
   getCursor(file: string): Promise<LogCursor | null>;
   saveCursor(file: string, cursor: LogCursor): Promise<void>;
 }
@@ -145,6 +154,18 @@ export class UsageRepository implements IUsageRepository {
       serverErrors: r.serverErrors,
       ...(r.avgLatencyMs !== null && { avgLatencyMs: r.avgLatencyMs }),
     }));
+  }
+
+  async popularApis(from: Date, to: Date, limit: number): Promise<ApiPopularityRow[]> {
+    const rows = await usageEventModel.aggregate<{ _id: string; applications: number }>([
+      { $match: { timestamp: { $gte: from, $lt: to }, status: { $lt: 400 } } },
+      // Per application first, so counting them never builds a huge set.
+      { $group: { _id: { apiId: "$apiId", app: "$wso2ApplicationId" }, calls: { $sum: 1 } } },
+      { $group: { _id: "$_id.apiId", applications: { $sum: 1 }, calls: { $sum: "$calls" } } },
+      { $sort: { applications: -1, calls: -1, _id: 1 } },
+      { $limit: limit },
+    ]);
+    return rows.map((r) => ({ apiId: r._id, applications: r.applications }));
   }
 
   async getCursor(file: string): Promise<LogCursor | null> {

@@ -549,6 +549,7 @@ Base URL: `http://localhost:4000`. Request and response bodies are JSON.
 | `GET` | `/openapi.json` | none | none | `200` OpenAPI 3.1 document |
 | `GET` | `/apis` | none | none | `200` WSO2 API list |
 | `GET` | `/apis/health` | none | none | `200 {enabled, windowHours, apis: [{apiId, status, successRate?, avgLatencyMs?}]}`, or `{enabled: false}` when usage isn't collected |
+| `GET` | `/apis/popular` | none | none | `200 {enabled, days, apis: [{apiId, applications}]}`, most used first, or `{enabled: false}` |
 | `GET` | `/apis/:id` | none | none | `200` WSO2 API details |
 | `GET` | `/apis/:id/operations` | none | none | `200 {operations}`: each endpoint's method, path, summary, parameters, request body fields and example responses, from the API's OpenAPI definition |
 | `POST` | `/auth/register` | none | `{email, password}` | `201 {user}` |
