@@ -573,6 +573,19 @@ export const openApiDocument = {
         responses: { "200": ok("Usage", { type: "object" }), "400": errors["400"], "401": errors["401"] },
       },
     },
+    "/usage.csv": {
+      get: {
+        summary: "The same calls as CSV: one line per time bucket, application, API and status",
+        security: user,
+        parameters: [{ name: "range", in: "query", schema: { enum: ["24h", "7d", "30d"], default: "24h" } }],
+        responses: {
+          "200": { description: "CSV", content: { "text/csv": { schema: { type: "string" } } } },
+          "400": errors["400"],
+          "401": errors["401"],
+          "404": error("Usage isn't being collected"),
+        },
+      },
+    },
     "/applications/{id}/subscriptions": {
       parameters: [idParam],
       get: {

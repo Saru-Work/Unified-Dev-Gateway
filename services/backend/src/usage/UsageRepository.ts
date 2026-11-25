@@ -30,6 +30,11 @@ export interface LogCursor {
   offset: number;
 }
 
+/** A rollup row for one application. */
+export interface UsageDetailRow extends UsageRollupRow {
+  wso2ApplicationId: string;
+}
+
 export interface ApplicationCallsRow {
   wso2ApplicationId: string;
   calls: number;
@@ -47,6 +52,8 @@ export interface IUsageRepository {
   /** Stores events, silently skipping ones already stored. */
   insertMany(events: UsageEvent[]): Promise<void>;
   rollup(query: UsageQuery): Promise<UsageRollupRow[]>;
+  /** Like rollup, split by application too; oldest first, then by application, API and status. */
+  details(query: UsageQuery): Promise<UsageDetailRow[]>;
   /** The 95th percentile latency, or undefined if there are no timed calls. */
   latencyP95(query: Omit<UsageQuery, "unit">): Promise<number | undefined>;
   /** Calls and errors (4xx and 5xx) per application; ones without calls are left out. */
@@ -119,6 +126,40 @@ export class UsageRepository implements IUsageRepository {
       calls: r.calls,
       latencySum: r.latencySum,
       latencyCount: r.latencyCount,
+    }));
+  }
+
+  async details({ wso2ApplicationIds, from, to, unit }: UsageQuery): Promise<UsageDetailRow[]> {
+    const rows = await usageEventModel.aggregate<{
+      _id: { bucket: Date; app: string; apiId: string; status: number };
+      apiName: string;
+      calls: number;
+      latencySum: number;
+      latencyCount: number;
+    }>([
+      { $match: { wso2ApplicationId: { $in: wso2ApplicationIds }, timestamp: { $gte: from, $lt: to } } },
+      {
+        $group: {
+          _id: {
+            bucket: { $dateTrunc: { date: "$timestamp", unit, timezone: "UTC" } },
+            app: "$wso2ApplicationId",
+            apiId: "$apiId",
+            status: "$status",
+          },
+          apiName: { $last: "$apiName" },
+          calls: { $sum: 1 },
+          latencySum: { $sum: { $ifNull: ["$latencyMs", 0] } },
+          latencyCount: { $sum: { $cond: [{ $gt: ["$latencyMs", null] }, 1, 0] } },
+        },
+      },
+      { $sort: { "_id.bucket": 1, "_id.app": 1, "_id.apiId": 1, "_id.status": 1 } },
+    ]);
+    return rows.map(({ _id, ...row }) => ({
+      bucket: _id.bucket,
+      wso2ApplicationId: _id.app,
+      apiId: _id.apiId,
+      status: _id.status,
+      ...row,
     }));
   }
 

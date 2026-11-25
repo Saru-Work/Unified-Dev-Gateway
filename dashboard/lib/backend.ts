@@ -33,11 +33,12 @@ function parse(text: string): unknown {
   }
 }
 
-export async function backend<T>(
+/** Like backend(), for responses that aren't JSON. */
+export async function backendText(
   path: string,
   { method = "GET", body, token, clientIp }: RequestOptions = {},
-): Promise<T> {
-  const headers: Record<string, string> = { Accept: "application/json" };
+): Promise<string> {
+  const headers: Record<string, string> = { Accept: "application/json, text/*" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
   if (clientIp) headers["X-Forwarded-For"] = clientIp;
@@ -54,17 +55,20 @@ export async function backend<T>(
     throw new BackendError(503, "The OpenGate backend is unreachable.");
   }
 
-  const data = parse(await res.text()) as
-    | { message?: string; details?: unknown }
-    | undefined;
+  const text = await res.text();
   if (!res.ok) {
+    const data = parse(text) as { message?: string; details?: unknown } | undefined;
     throw new BackendError(
       res.status,
       data?.message ?? `Request failed (${res.status})`,
       data?.details,
     );
   }
-  return data as T;
+  return text;
+}
+
+export async function backend<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return parse(await backendText(path, options)) as T;
 }
 
 /** Turns any error into a message that's safe and useful to show in the UI. */

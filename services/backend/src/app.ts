@@ -153,6 +153,7 @@ export function createApp(deps: AppDependencies) {
   app.use("/auth", createAuthRouter(authController, authenticate));
   app.use("/applications", createApplicationRouter(appController, authenticate));
   app.get("/usage", authenticate, appController.accountUsage);
+  app.get("/usage.csv", authenticate, appController.usageCsv);
   app.use("/saved-apis", createSavedApiRouter(deps.savedApis, deps.wso2, authenticate));
   app.use(
     "/throttling-policies",

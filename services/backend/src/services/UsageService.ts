@@ -1,5 +1,6 @@
 import type { ApplicationRecord } from "../repositories/ApplicationRepository";
 import { AppError } from "../errors/AppError";
+import { toCsv } from "../usage/csv";
 import type { IUsageRepository } from "../usage/UsageRepository";
 import {
   rangeWindow,
@@ -69,5 +70,14 @@ export class UsageService {
         })
         .sort((a, b) => b.calls - a.calls || a.name.localeCompare(b.name)),
     };
+  }
+
+  async csv(applications: ApplicationRecord[], range: UsageRange): Promise<string> {
+    const names = new Map(applications.map((a) => [a.wso2ApplicationId, a.name]));
+    const rows = await this.usage.details({
+      wso2ApplicationIds: [...names.keys()],
+      ...rangeWindow(range, new Date()),
+    });
+    return toCsv(rows, (id) => names.get(id) ?? id);
   }
 }

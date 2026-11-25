@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { appendFile, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { toCsv } from "../src/usage/csv";
 import { parseMetricLine } from "../src/usage/metricsLog";
 import { MetricsLogCollector } from "../src/usage/MetricsLogCollector";
 import { rangeWindow, summarize } from "../src/usage/summarize";
@@ -128,6 +129,19 @@ describe("summarize", () => {
   });
 });
 
+describe("toCsv", () => {
+  it("quotes special characters and defuses formulas", () => {
+    const row = {
+      bucket: new Date("2026-11-22T20:00:00Z"), wso2ApplicationId: "w", apiId: "a", apiName: 'Say "hi", all',
+      status: 200, calls: 2, latencySum: 0, latencyCount: 0,
+    };
+    assert.equal(
+      toCsv([row], () => "=HYPERLINK(1)").split("\r\n")[1],
+      `2026-11-22T20:00:00.000Z,'=HYPERLINK(1),"Say ""hi"", all",200,2,`,
+    );
+  });
+});
+
 describe("MetricsLogCollector", () => {
   let dir: string;
   let file: string;
@@ -246,6 +260,24 @@ describe("GET /applications/:id/usage", () => {
     assert.equal((await server.get("/usage?range=1y", alice)).status, 400);
     assert.equal((await server.get("/usage?range=7d&range=30d", alice)).status, 400);
     assert.equal((await server.get("/usage")).status, 401);
+  });
+
+  it("exports one account's calls as CSV", async () => {
+    const res = await fetch(`${server.url}/usage.csv?range=7d`, { headers: alice });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") ?? "", /^text\/csv/);
+    assert.match(res.headers.get("content-disposition") ?? "", /opengate-usage-7d\.csv/);
+    const lines = (await res.text()).trimEnd().split("\r\n");
+    assert.equal(lines[0], "start,application,api,status,calls,avg_latency_ms");
+    assert.deepEqual(
+      lines.slice(1).map((l) => l.split(",").slice(1).join(",")),
+      ["app,Beta,200,1,300", "app,Alpha,200,1,100", "app,Alpha,429,1,", "second,Alpha,200,1,"],
+    );
+
+    const none = await fetch(`${server.url}/usage.csv`, { headers: bob });
+    assert.equal((await none.text()).trimEnd().split("\r\n").length, 1);
+    assert.equal((await server.get("/usage.csv")).status, 401);
+    assert.equal((await server.get("/usage.csv?range=1y", alice)).status, 400);
   });
 
   it("returns 404 for another user's application", async () => {

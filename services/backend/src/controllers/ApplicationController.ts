@@ -180,6 +180,14 @@ export class ApplicationController {
     res.json(await this.usageService.account(applications, range));
   };
 
+  usageCsv = async (req: Request, res: Response) => {
+    const range = readRange(req.query.range);
+    if (!this.usageService) throw new AppError(404, "Usage isn't being collected");
+    const applications = await this.service.list(res.locals.userId as string);
+    const csv = await this.usageService.csv(applications, range);
+    res.attachment(`opengate-usage-${range}.csv`).type("text/csv").send(csv);
+  };
+
   listSubscriptions = async (req: Request<{ id: string }>, res: Response) => {
     const subscriptions = await this.subscriptions.list(
       res.locals.userId as string,

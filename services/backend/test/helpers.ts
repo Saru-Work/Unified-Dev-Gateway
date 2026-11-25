@@ -11,6 +11,7 @@ import {
   type ApplicationCallsRow,
   type IUsageRepository,
   type LogCursor,
+  type UsageDetailRow,
   type UsageQuery,
   type UsageRollupRow,
 } from "../src/usage/UsageRepository";
@@ -325,6 +326,22 @@ export class InMemoryUsageRepository implements IUsageRepository {
       rows.set(key, row);
     }
     return [...rows.values()];
+  }
+
+  async details(q: UsageQuery): Promise<UsageDetailRow[]> {
+    const rows: UsageDetailRow[] = [];
+    for (const wso2ApplicationId of [...q.wso2ApplicationIds].sort()) {
+      for (const row of await this.rollup({ ...q, wso2ApplicationIds: [wso2ApplicationId] })) {
+        rows.push({ ...row, wso2ApplicationId });
+      }
+    }
+    return rows.sort(
+      (a, b) =>
+        a.bucket.getTime() - b.bucket.getTime() ||
+        a.wso2ApplicationId.localeCompare(b.wso2ApplicationId) ||
+        a.apiId.localeCompare(b.apiId) ||
+        a.status - b.status,
+    );
   }
 
   async latencyP95(q: Omit<UsageQuery, "unit">): Promise<number | undefined> {
